@@ -1,0 +1,12 @@
+{% extends "base.html" %}
+{% block content %}
+<ul class="nav nav-pills mb-4">
+    <li class="nav-item">
+        <a class="nav-link {% if request.path == '/admin' %}active{% endif %}" href="{{ url_for('admin_dashboard') }}">Dashboard</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if request.path.startswith('/admin/courses') %}active{% endif %}" href="{{ url_for('admin_courses') }}">Courses</a>
+    </li>
+</ul>
+{% block admin_content %}{% endblock %}
+{% endblock %}

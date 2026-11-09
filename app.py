@@ -3,7 +3,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, abo
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_wtf import CSRFProtect
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Examiner
+from models import db, User, Examiner, Course, Examination, Slot, Booking
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -33,9 +33,16 @@ with app.app_context():
     db.create_all()
     create_admin()
 
-def check_role(role):
-    if current_user.role != role:
-        abort(403)
+@app.before_request
+def check_access():
+    """Every URL under /admin, /examiner or /student needs the matching role."""
+    areas = (("/admin", "admin"), ("/examiner", "examiner"), ("/student", "student"))
+    for prefix, role in areas:
+        if request.path == prefix or request.path.startswith(prefix + "/"):
+            if not current_user.is_authenticated:
+                return login_manager.unauthorized()
+            if current_user.role != role:
+                abort(403) 
 
 @app.route("/")
 def home():
@@ -103,27 +110,98 @@ def logout():
     flash("You have been logged out.", "info")
     return redirect(url_for("login"))
 
-@app.route("/admin")
-@login_required
-def admin_dashboard():
-    check_role("admin")
-    return render_template("admin_dashboard.html")
-
 @app.route("/examiner")
-@login_required
 def examiner_dashboard():
-    check_role("examiner")
     return render_template("examiner_dashboard.html")
 
 @app.route("/student")
-@login_required
 def student_dashboard():
-    check_role("student")
     return render_template("student_dashboard.html")
 
-@app.route("/forgot")
-def forgot():
-    return "Contact the Admin to reset your password."
+# ---------------- Admin: dashboard -----------
+@app.route("/admin")
+def admin_dashboard():
+    stats = [
+        ("Courses", Course.query.count()),
+        ("Examinations", Examination.query.count()),
+        ("Examiners", User.query.filter_by(role="examiner").count()),
+        ("Students", User.query.filter_by(role="student").count()),
+        ("Exam slots", Slot.query.count()),
+        ("Bookings", Booking.query.count()),
+    ]
+    return render_template("admin_dashboard.html", stats=stats)
+
+# ---------------- Admin: courses ----------------
+@app.route("/admin/courses")
+def admin_courses():
+    courses = Course.query.order_by(Course.code).all()
+    return render_template("admin_courses.html", courses=courses)
+
+@app.route("/admin/courses/new", methods=["GET", "POST"])
+def new_course():
+    if request.method == "POST":
+        code = request.form["code"].strip().upper()
+        name = request.form["name"].strip()
+        description = request.form["description"].strip()
+        status = request.form["status"]
+
+        if status not in ("Active", "Inactive"):
+            flash("Invalid status.", "danger")
+            return redirect(url_for("new_course"))
+
+        if Course.query.filter_by(code=code).first():
+            flash("That course code already exists.", "danger")
+            return redirect(url_for("new_course"))
+
+        db.session.add(Course(code=code, name=name, description=description, status=status))
+        db.session.commit()
+        flash("Course added.", "success")
+        return redirect(url_for("admin_courses"))
+
+    return render_template("course_form.html", course=None)
+
+
+@app.route("/admin/courses/<int:course_id>/edit", methods=["GET", "POST"])
+def edit_course(course_id):
+    course = db.get_or_404(Course, course_id)
+
+    if request.method == "POST":
+        code = request.form["code"].strip().upper()
+        name = request.form["name"].strip()
+        description = request.form["description"].strip()
+        status = request.form["status"]
+
+        if status not in ("Active", "Inactive"):
+            flash("Invalid status.", "danger")
+            return redirect(url_for("edit_course", course_id=course.id))
+
+        same_code = Course.query.filter_by(code=code).first()
+        if same_code and same_code.id != course.id:
+            flash("Another course already uses that code.", "danger")
+            return redirect(url_for("edit_course", course_id=course.id))
+
+        course.code = code
+        course.name = name
+        course.description = description
+        course.status = status
+        db.session.commit()
+        flash("Course updated.", "success")
+        return redirect(url_for("admin_courses"))
+
+    return render_template("course_form.html", course=course)
+
+
+@app.route("/admin/courses/<int:course_id>/delete", methods=["POST"])
+def delete_course(course_id):
+    course = db.get_or_404(Course, course_id)
+
+    if course.examinations:
+        flash("Cannot delete: this course still has examinations. Set it to Inactive instead.", "danger")
+    else:
+        db.session.delete(course)
+        db.session.commit()
+        flash("Course deleted.", "success")
+    return redirect(url_for("admin_courses"))
 
 if __name__ == "__main__":
     app.run(debug=True)
