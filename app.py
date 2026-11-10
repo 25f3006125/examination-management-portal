@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, abo
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_wtf import CSRFProtect
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Examiner, Course, Examination, Rubric, Score, Slot, Booking
+from models import db, User, Examiner, Course, Examination, ExamAssignment, Rubric, Score, Slot, Booking
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -116,8 +116,8 @@ def admin_dashboard():
     stats = [
         ("Courses", Course.query.count(), url_for("admin_courses")),
         ("Examinations", Examination.query.count(), url_for("admin_exams")),
-        ("Examiners", User.query.filter_by(role="examiner").count(), None),
-        ("Students", User.query.filter_by(role="student").count(), None),
+        ("Examiners", User.query.filter_by(role="examiner").count(), url_for("admin_examiners")),
+        ("Students", User.query.filter_by(role="student").count(), url_for("admin_students")),
         ("Exam slots", Slot.query.count(), None),
         ("Bookings", Booking.query.count(), None),
     ]
@@ -292,13 +292,11 @@ def read_rubric_form(exam, rubric=None):
         return None, "Maximum marks must be at least 1."
     if values["weightage"] < 0 or values["weightage"] > 100:
         return None, "Weightage must be between 0 and 100."
-
     others = sum(r.max_marks for r in exam.rubrics if rubric is None or r.id != rubric.id)
     new_total = others + values["max_marks"]
     if new_total > exam.max_marks:
         return None, f"Rubric marks would total {new_total}, but this examination has only {exam.max_marks} marks."
     return values, None
-
 
 @app.route("/admin/exams/<int:exam_id>/rubrics", methods=["GET", "POST"])
 def exam_rubrics(exam_id):
@@ -314,7 +312,6 @@ def exam_rubrics(exam_id):
         return redirect(url_for("exam_rubrics", exam_id=exam.id))
     total = sum(r.max_marks for r in exam.rubrics)
     return render_template("exam_rubrics.html", exam=exam, total=total)
-
 
 @app.route("/admin/rubrics/<int:rubric_id>/edit", methods=["GET", "POST"])
 def edit_rubric(rubric_id):
@@ -333,7 +330,6 @@ def edit_rubric(rubric_id):
         return redirect(url_for("exam_rubrics", exam_id=rubric.exam_id))
     return render_template("rubric_form.html", rubric=rubric)
 
-
 @app.route("/admin/rubrics/<int:rubric_id>/delete", methods=["POST"])
 def delete_rubric(rubric_id):
     rubric = db.get_or_404(Rubric, rubric_id)
@@ -345,6 +341,89 @@ def delete_rubric(rubric_id):
         db.session.commit()
         flash("Rubric deleted.", "success")
     return redirect(url_for("exam_rubrics", exam_id=exam_id))
+
+#Admin: examiners and students
+@app.route("/admin/examiners")
+def admin_examiners():
+    examiners = Examiner.query.order_by(Examiner.id).all()
+    return render_template("admin_examiners.html", examiners=examiners)
+
+@app.route("/admin/examiners/new", methods=["GET", "POST"])
+def new_examiner():
+    if request.method == "POST":
+        name = request.form["name"].strip()
+        email = request.form["email"].strip().lower()
+        password = request.form["password"]
+        phone = request.form["phone"].strip()
+        department = request.form["department"].strip()
+        if not name or not email or not password:
+            flash("Name, email and password are required.", "danger")
+            return redirect(url_for("new_examiner"))
+        if User.query.filter_by(email=email).first():
+            flash("That email is already registered.", "danger")
+            return redirect(url_for("new_examiner"))
+        user = User(email=email, name=name, phone=phone, department=department,
+                    role="examiner", password_hash=generate_password_hash(password))
+        db.session.add(user)
+        db.session.add(Examiner(user=user, status="Approved"))
+        db.session.commit()
+        flash("Examiner added and approved.", "success")
+        return redirect(url_for("admin_examiners"))
+    return render_template("examiner_form.html")
+
+@app.route("/admin/examiners/<int:examiner_id>/status", methods=["POST"])
+def set_examiner_status(examiner_id):
+    examiner = db.get_or_404(Examiner, examiner_id)
+    status = request.form["status"]
+    if status not in ("Approved", "Deactivated"):
+        flash("Invalid status.", "danger")
+    else:
+        examiner.status = status
+        db.session.commit()
+        flash(f"{examiner.user.name} is now {status}.", "success")
+    return redirect(url_for("admin_examiners"))
+
+@app.route("/admin/students")
+def admin_students():
+    students = User.query.filter_by(role="student").order_by(User.id).all()
+    return render_template("admin_students.html", students=students)
+
+#Admin: assign examiners to examinations
+@app.route("/admin/exams/<int:exam_id>/examiners", methods=["GET", "POST"])
+def exam_examiners(exam_id):
+    exam = db.get_or_404(Examination, exam_id)
+    assigned_ids = [a.examiner_id for a in exam.assignments]
+    if request.method == "POST":
+        try:
+            user_id = int(request.form["examiner_id"])
+        except ValueError:
+            user_id = 0
+        examiner = Examiner.query.filter_by(user_id=user_id, status="Approved").first()
+        if examiner is None:
+            flash("Please choose an approved examiner.", "danger")
+        elif user_id in assigned_ids:
+            flash("That examiner is already assigned to this examination.", "warning")
+        else:
+            db.session.add(ExamAssignment(exam_id=exam.id, examiner_id=user_id))
+            db.session.commit()
+            flash(f"{examiner.user.name} assigned to {exam.name}.", "success")
+        return redirect(url_for("exam_examiners", exam_id=exam.id))
+    approved = Examiner.query.filter_by(status="Approved").all()
+    available = [e for e in approved if e.user_id not in assigned_ids]
+    return render_template("exam_examiners.html", exam=exam, available=available)
+
+@app.route("/admin/assignments/<int:assignment_id>/delete", methods=["POST"])
+def delete_assignment(assignment_id):
+    assignment = db.get_or_404(ExamAssignment, assignment_id)
+    exam_id = assignment.exam_id
+    has_slots = Slot.query.filter_by(exam_id=exam_id, examiner_id=assignment.examiner_id).first()
+    if has_slots:
+        flash("Cannot remove: this examiner already has slots for this examination.", "danger")
+    else:
+        db.session.delete(assignment)
+        db.session.commit()
+        flash("Examiner removed from this examination.", "success")
+    return redirect(url_for("exam_examiners", exam_id=exam_id))
 
 if __name__ == "__main__":
     app.run(debug=True)

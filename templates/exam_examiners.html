@@ -1,0 +1,58 @@
+{% extends "admin_base.html" %}
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Examiners: {{ exam.name }} <small class="text-muted">({{ exam.course.code }})</small></h3>
+    <a class="btn btn-secondary" href="{{ url_for('admin_exams') }}">Back to examinations</a>
+</div>
+<div class="table-responsive">
+    <table class="table table-striped bg-white align-middle">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Department</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for a in exam.assignments %}
+            <tr>
+                <td>{{ a.examiner.name }}</td>
+                <td>{{ a.examiner.email }}</td>
+                <td>{{ a.examiner.department or '' }}</td>
+                <td>
+                    <form method="post" action="{{ url_for('delete_assignment', assignment_id=a.id) }}" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-sm btn-outline-danger">Remove</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="4" class="text-center text-muted">No examiners assigned yet.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<div class="card" style="max-width: 600px;">
+    <div class="card-body">
+        <h5 class="mb-3">Assign an examiner</h5>
+        {% if available %}
+        <form method="post" class="d-flex gap-2">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <select class="form-select" name="examiner_id" required>
+                {% for e in available %}
+                <option value="{{ e.user_id }}">{{ e.user.name }} ({{ e.user.email }})</option>
+                {% endfor %}
+            </select>
+            <button class="btn btn-primary">Assign</button>
+        </form>
+        {% else %}
+        <p class="text-muted mb-0">No approved examiners are available. Approve or add one on the
+            <a href="{{ url_for('admin_examiners') }}">Examiners page</a>.
+        </p>
+    {% endif %}
+    </div>
+</div>
+{% endblock %}

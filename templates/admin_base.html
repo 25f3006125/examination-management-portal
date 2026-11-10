@@ -10,6 +10,12 @@
     <li>
         <a class="nav-link {% if request.path.startswith('/admin/exams') %}active{% endif %}" href="{{ url_for('admin_exams') }}">Examinations</a>
     </li>
+    <li class="nav-item">
+        <a class="nav-link {% if request.path.startswith('/admin/examiners') %}active{% endif %}" href="{{ url_for('admin_examiners') }}">Examiners</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if request.path.startswith('/admin/students') %}active{% endif %}" href="{{ url_for('admin_students') }}">Students</a>
+    </li>
 </ul>
 {% block admin_content %}{% endblock %}
 {% endblock %}
