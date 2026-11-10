@@ -1,0 +1,68 @@
+{% extends "admin_base.html" %}
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+  <h3 class="mb-0">Rubrics: {{ exam.name }} <small class="text-muted">({{ exam.course.code }})</small></h3>
+  <a class="btn btn-secondary" href="{{ url_for('admin_exams') }}">Back to examinations</a>
+</div>
+<p>
+  Total rubric marks: <strong>{{ total }}</strong> of {{ exam.max_marks }}
+  {% if total == exam.max_marks %}
+    <span class="badge text-bg-success">Complete</span>
+  {% elif total > exam.max_marks %}
+    <span class="badge text-bg-danger">Over by {{ total - exam.max_marks }}</span>
+  {% else %}
+    <span class="badge text-bg-warning">{{ exam.max_marks - total }} marks still to assign</span>
+  {% endif %}
+</p>
+<div class="table-responsive">
+  <table class="table table-striped bg-white align-middle">
+    <thead>
+      <tr>
+        <th>Criterion</th>
+        <th>Max marks</th>
+        <th>Weightage (%)</th>
+        <th>Description</th>
+        <th>Actions</th>
+    </tr>
+    </thead>
+    <tbody>
+      {% for r in exam.rubrics %}
+      <tr>
+        <td>{{ r.criterion }}</td>
+        <td>{{ r.max_marks }}</td>
+        <td>{{ r.weightage }}</td>
+        <td>{{ r.description or '' }}</td>
+        <td>
+          <a class="btn btn-sm btn-outline-primary" href="{{ url_for('edit_rubric', rubric_id=r.id) }}">Edit</a>
+          <form method="post" action="{{ url_for('delete_rubric', rubric_id=r.id) }}" class="d-inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <button class="btn btn-sm btn-outline-danger">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5" class="text-center text-muted">No rubric criteria yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="card" style="max-width: 600px;">
+  <div class="card-body">
+    <h5 class="mb-3">Add a criterion</h5>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input class="form-control mb-3" type="text" name="criterion" placeholder="Criterion name (e.g. Clarity)" required>
+      <div class="row">
+        <div class="col-6">
+          <input class="form-control mb-3" type="number" min="1" name="max_marks" placeholder="Maximum marks" required>
+        </div>
+        <div class="col-6">
+          <input class="form-control mb-3" type="number" min="0" max="100" step="any" name="weightage" placeholder="Weightage (%)" required>
+        </div>
+      </div>
+      <textarea class="form-control mb-3" name="description" placeholder="Description" rows="2"></textarea>
+      <button class="btn btn-primary">Add rubric</button>
+    </form>
+  </div>
+</div>
+{% endblock %}

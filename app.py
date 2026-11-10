@@ -4,7 +4,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, abo
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_wtf import CSRFProtect
 from werkzeug.security import generate_password_hash, check_password_hash
-from models import db, User, Examiner, Course, Examination, Slot, Booking
+from models import db, User, Examiner, Course, Examination, Rubric, Score, Slot, Booking
 
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 
@@ -274,6 +274,77 @@ def delete_exam(exam_id):
         db.session.commit()
         flash("Examination deleted.", "success")
     return redirect(url_for("admin_exams"))
+
+#Admin: rubrics
+def read_rubric_form(exam, rubric=None):
+    try:
+        values = {
+            "criterion": request.form["criterion"].strip(),
+            "max_marks": int(request.form["max_marks"]),
+            "weightage": float(request.form["weightage"]),
+            "description": request.form["description"].strip(),
+        }
+    except ValueError:
+        return None, "Maximum marks and weightage must be numbers."
+    if not values["criterion"]:
+        return None, "Criterion name is required."
+    if values["max_marks"] < 1:
+        return None, "Maximum marks must be at least 1."
+    if values["weightage"] < 0 or values["weightage"] > 100:
+        return None, "Weightage must be between 0 and 100."
+
+    others = sum(r.max_marks for r in exam.rubrics if rubric is None or r.id != rubric.id)
+    new_total = others + values["max_marks"]
+    if new_total > exam.max_marks:
+        return None, f"Rubric marks would total {new_total}, but this examination has only {exam.max_marks} marks."
+    return values, None
+
+
+@app.route("/admin/exams/<int:exam_id>/rubrics", methods=["GET", "POST"])
+def exam_rubrics(exam_id):
+    exam = db.get_or_404(Examination, exam_id)
+    if request.method == "POST":
+        values, error = read_rubric_form(exam)
+        if error:
+            flash(error, "danger")
+        else:
+            db.session.add(Rubric(exam_id=exam.id, **values))
+            db.session.commit()
+            flash("Rubric added.", "success")
+        return redirect(url_for("exam_rubrics", exam_id=exam.id))
+    total = sum(r.max_marks for r in exam.rubrics)
+    return render_template("exam_rubrics.html", exam=exam, total=total)
+
+
+@app.route("/admin/rubrics/<int:rubric_id>/edit", methods=["GET", "POST"])
+def edit_rubric(rubric_id):
+    rubric = db.get_or_404(Rubric, rubric_id)
+    if request.method == "POST":
+        values, error = read_rubric_form(rubric.exam, rubric)
+        if error:
+            flash(error, "danger")
+            return redirect(url_for("edit_rubric", rubric_id=rubric.id))
+        rubric.criterion = values["criterion"]
+        rubric.max_marks = values["max_marks"]
+        rubric.weightage = values["weightage"]
+        rubric.description = values["description"]
+        db.session.commit()
+        flash("Rubric updated.", "success")
+        return redirect(url_for("exam_rubrics", exam_id=rubric.exam_id))
+    return render_template("rubric_form.html", rubric=rubric)
+
+
+@app.route("/admin/rubrics/<int:rubric_id>/delete", methods=["POST"])
+def delete_rubric(rubric_id):
+    rubric = db.get_or_404(Rubric, rubric_id)
+    exam_id= rubric.exam_id
+    if Score.query.filter_by(rubric_id=rubric.id).first():
+        flash("Cannot delete: marks have already been given using this rubric.", "danger")
+    else:
+        db.session.delete(rubric)
+        db.session.commit()
+        flash("Rubric deleted.", "success")
+    return redirect(url_for("exam_rubrics", exam_id=exam_id))
 
 if __name__ == "__main__":
     app.run(debug=True)

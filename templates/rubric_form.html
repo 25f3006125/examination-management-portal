@@ -1,0 +1,23 @@
+{% extends "admin_base.html" %}
+{% block admin_content %}
+<div class="card" style="max-width: 600px;">
+  <div class="card-body">
+    <h4 class="mb-3">Edit Rubric <small class="text-muted">{{ rubric.exam.name }}</small></h4>
+    <form method="post">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+      <input class="form-control mb-3" type="text" name="criterion" placeholder="Criterion name" value="{{ rubric.criterion }}" required>
+      <div class="row">
+        <div class="col-6">
+          <input class="form-control mb-3" type="number" min="1" name="max_marks" placeholder="Maximum marks" value="{{ rubric.max_marks }}" required>
+        </div>
+        <div class="col-6">
+          <input class="form-control mb-3" type="number" min="0" max="100" step="any" name="weightage" placeholder="Weightage (%)" value="{{ rubric.weightage }}" required>
+        </div>
+      </div>
+      <textarea class="form-control mb-3" name="description" placeholder="Description" rows="2">{{ rubric.description or '' }}</textarea>
+      <button class="btn btn-primary">Save</button>
+      <a class="btn btn-secondary" href="{{ url_for('exam_rubrics', exam_id=rubric.exam_id) }}">Cancel</a>
+    </form>
+  </div>
+</div>
+{% endblock %}
