@@ -1,0 +1,51 @@
+{% extends "admin_base.html" %}
+{% block admin_content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Examinations</h3>
+    <a class="btn btn-primary" href="{{ url_for('new_exam') }}">+ New Examination</a>
+</div>
+<div class="table-responsive">
+    <table class="table table-striped bg-white align-middle">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Course</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Duration</th>
+                <th>Max marks</th>
+                <th>Sloat creation</th>
+                <th>Booking</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for exam in exams %}
+            <tr>
+                <td>{{ exam.id }}</td>
+                <td>{{ exam.course.code }}</td>
+                <td>{{ exam.name }}</td>
+                <td>{{ exam.exam_type }}</td>
+                <td>{{ exam.duration }} min</td>
+                <td>{{ exam.max_marks }}</td>
+                <td>{{ exam.slot_start }} to {{ exam.slot_end }}</td>
+                <td>{{ exam.booking_start }} to {{ exam.booking_end }}</td>
+                <td><span class="badge text-bg-secondary">{{ exam.status }}</span></td>
+                <td>
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('edit_exam', exam_id=exam.id) }}">Edit</a>
+                    <form method="post" action="{{ url_for('delete_exam', exam_id=exam.id) }}" class="d-inline">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button class="btn btn-sm btn-outline-danger">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="10" class="text-center text-muted">No examinations yet.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

@@ -1,0 +1,57 @@
+{% extends "admin_base.html" %}
+{% block admin_content %}
+<div class="card" style="max-width: 600px;">
+    <div class="card-body">
+        <h4 class="mb-3">{% if exam %}Edit Examination{% else %}New Examination{% endif %}</h4>
+        <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label class="form-label" for="course_id">Course</label>
+            <select class="form-select mb-3" id="course_id" name="course_id" reqiured>
+                {% for c in courses %}
+                <option value="{{ c.id }}" {% if exam and exam.couurse_id == c.id %}selected{% endif %}>
+                    {{ c.code }} - {{ c.name }}{% if c.status == 'Inactive' %} (inactive){% endif %}
+                </option>
+                {% endfor %}
+            </select>
+
+            <input class="form-control mb-3" type="text" name="name" placeholder="Examination name" value="{{ exam.name }}" required>
+            <label class="form-label" for="exam_type">Type</label>
+            <select class="form-select mb-3" id="exam_type" name="exam_type" required>
+                {% for t in exam_types %}
+                <option value="{{ t }}" {% if exam and exam.exam_type == t %}selected{% endif %}>{{ t }}</option>
+                {% endfor %}
+            </select>
+            <div class="row">
+                <div class="col-6">
+                    <input class="form-control mb-3" type="number" min="1" name="duration" placeholder="Duration (minutes)" value="{{ exam.duration }}" required>
+                </div>
+                <div class="col-6">
+                    <input class="form-control mb-3" type="number" min="1" name="max_marks" placeholder="Maximum marks" value="{{ exam.max_marks }}" required>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <label class="form-label" for="slot_start">Slot creation starts</label>
+                    <input class="form-control mb-3" type="date" id="slot_start" name="slot_start" value="{{ exam.slot_start or '' }}" required>
+                </div>
+                <div class="col-6">
+                    <label class="form-label" for="slot_end">Slot creation ends</label>
+                    <input class="form-control mb-3" type="date" id="slot_end" name="slot_end" value="{{ exam.slot_end or '' }}" required>
+                </div>
+            </div>
+            <div class="row">
+                <div class="col-6">
+                    <label class="form-label" for="booking_start">Booking opens</label>
+                    <input class="form-control mb-3" type="date" id="booking_start" name="booking_start" value="{{ exam.booking_start or '' }}" required>
+                </div>
+                <div class="col-6">
+                    <label class="form-label" for="booking_end">Booking closes</label>
+                    <input class="form-control mb-3" type="date" id="booking_end" name="booking_end" value="{{ exam.booking_end or '' }}" required>
+                </div>
+            </div>
+            <button class="btn btn-primary">Save</button>
+            <a class="btn btn-secondary" href="{{ url_for('admin_exams') }}">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}

@@ -2,12 +2,15 @@
 {% block admin_content %}
 <h3 class="mb-3">Admin Dashboard</h3>
 <div class="row g-3">
-    {% for label, value in stats %}
+    {% for label, value, _ in stats %}
     <div class="col-6 col-md-4">
         <div class="card text-center shadow-sm">
             <div class="card-body">
                 <div class="display-6">{{ value }}</div>
                 <div class="text-muted">{{ label }}</div>
+                {% if link %}
+                <a href="{{ link }}" class="stretched-link"></a>
+                {% endif %}
             </div>
         </div>
     </div>

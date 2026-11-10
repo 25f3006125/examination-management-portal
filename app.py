@@ -1,4 +1,5 @@
-import os 
+import os
+from datetime import date
 from flask import Flask, render_template, request, redirect, url_for, flash, abort
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_wtf import CSRFProtect
@@ -35,7 +36,6 @@ with app.app_context():
 
 @app.before_request
 def check_access():
-    """Every URL under /admin, /examiner or /student needs the matching role."""
     areas = (("/admin", "admin"), ("/examiner", "examiner"), ("/student", "student"))
     for prefix, role in areas:
         if request.path == prefix or request.path.startswith(prefix + "/"):
@@ -63,24 +63,19 @@ def register():
         phone = request.form["phone"]
         department = request.form["department"]
         role = request.form["role"]
-
         if role not in ("student", "examiner"):
             flash("Please choose Student or Examiner.", "danger")
             return redirect(url_for("register"))
-
         if User.query.filter_by(email=email).first():
             flash("Email is already registered.", "danger")
             return redirect(url_for("register"))
-
         user = User(email=email, name=name, phone=phone, department=department, role=role, password_hash=generate_password_hash(password))
         db.session.add(user)
         if role == "examiner":
             db.session.add(Examiner(user=user))   # status starts as "Pending"
         db.session.commit()
-
         flash("Successfully registered! Plaese log in. Examiners can log in after the Admin approves them.", "success")
         return redirect(url_for("login"))
-
     return render_template("register.html")
 
 @app.route("/login", methods=["GET", "POST"])
@@ -89,18 +84,14 @@ def login():
         email = request.form["email"].strip().lower()
         password = request.form["password"]
         user = User.query.filter_by(email=email).first()
-
         if user is None or not check_password_hash(user.password_hash, password):
             flash("Incorrect email or password.", "danger")
             return redirect(url_for("login"))
-
         if user.role == "examiner" and user.profile.status != "Approved":
             flash("Your examiner account is not approved yet.", "warning")
             return redirect(url_for("login"))
-
         login_user(user)
         return redirect(url_for("home"))
-    
     return render_template("login.html")
 
 @app.route("/logout")
@@ -118,20 +109,21 @@ def examiner_dashboard():
 def student_dashboard():
     return render_template("student_dashboard.html")
 
-# ---------------- Admin: dashboard -----------
+
+#Admin: Dashboard
 @app.route("/admin")
 def admin_dashboard():
     stats = [
-        ("Courses", Course.query.count()),
-        ("Examinations", Examination.query.count()),
-        ("Examiners", User.query.filter_by(role="examiner").count()),
-        ("Students", User.query.filter_by(role="student").count()),
-        ("Exam slots", Slot.query.count()),
-        ("Bookings", Booking.query.count()),
+        ("Courses", Course.query.count(), url_for("admin_courses")),
+        ("Examinations", Examination.query.count(), url_for("admin_exams")),
+        ("Examiners", User.query.filter_by(role="examiner").count(), None),
+        ("Students", User.query.filter_by(role="student").count(), None),
+        ("Exam slots", Slot.query.count(), None),
+        ("Bookings", Booking.query.count(), None),
     ]
     return render_template("admin_dashboard.html", stats=stats)
 
-# ---------------- Admin: courses ----------------
+#Admin: courses
 @app.route("/admin/courses")
 def admin_courses():
     courses = Course.query.order_by(Course.code).all()
@@ -144,42 +136,34 @@ def new_course():
         name = request.form["name"].strip()
         description = request.form["description"].strip()
         status = request.form["status"]
-
         if status not in ("Active", "Inactive"):
             flash("Invalid status.", "danger")
             return redirect(url_for("new_course"))
-
         if Course.query.filter_by(code=code).first():
             flash("That course code already exists.", "danger")
             return redirect(url_for("new_course"))
-
         db.session.add(Course(code=code, name=name, description=description, status=status))
         db.session.commit()
         flash("Course added.", "success")
         return redirect(url_for("admin_courses"))
-
     return render_template("course_form.html", course=None)
 
 
 @app.route("/admin/courses/<int:course_id>/edit", methods=["GET", "POST"])
 def edit_course(course_id):
     course = db.get_or_404(Course, course_id)
-
     if request.method == "POST":
         code = request.form["code"].strip().upper()
         name = request.form["name"].strip()
         description = request.form["description"].strip()
         status = request.form["status"]
-
         if status not in ("Active", "Inactive"):
             flash("Invalid status.", "danger")
             return redirect(url_for("edit_course", course_id=course.id))
-
         same_code = Course.query.filter_by(code=code).first()
         if same_code and same_code.id != course.id:
             flash("Another course already uses that code.", "danger")
             return redirect(url_for("edit_course", course_id=course.id))
-
         course.code = code
         course.name = name
         course.description = description
@@ -187,21 +171,109 @@ def edit_course(course_id):
         db.session.commit()
         flash("Course updated.", "success")
         return redirect(url_for("admin_courses"))
-
     return render_template("course_form.html", course=course)
 
 
 @app.route("/admin/courses/<int:course_id>/delete", methods=["POST"])
 def delete_course(course_id):
     course = db.get_or_404(Course, course_id)
-
     if course.examinations:
-        flash("Cannot delete: this course still has examinations. Set it to Inactive instead.", "danger")
+        flash("Cannot delete: This course still has examinations. Set it to Inactive instead.", "danger")
     else:
         db.session.delete(course)
         db.session.commit()
         flash("Course deleted.", "success")
     return redirect(url_for("admin_courses"))
+
+#Admin: Examinations
+EXAM_TYPES = ["Viva", "Practical", "Project Demo", "Assessment"]
+
+def read_exam_form():
+    try:
+        values = {
+            "course_id": int(request.form["course_id"]),
+            "name": request.form["name"].strip(),
+            "exam_type": request.form["exam_type"],
+            "duration": int(request.form["duration"]),
+            "max_marks": int(request.form["max_marks"]),
+            "slot_start": date.fromisoformat(request.form["slot_start"]),
+            "slot_end": date.fromisoformat(request.form["slot_end"]),
+            "booking_start": date.fromisoformat(request.form["booking_start"]),
+            "booking_end": date.fromisoformat(request.form["booking_end"]),
+        }
+    except ValueError:
+        return None, "Please fill in every field with valid numbers and dates."
+    if db.session.get(Course, values["course_id"]) is None:
+        return None, "Please choose a valid course."
+    if values["exam_type"] not in EXAM_TYPES:
+        return None, "Please choose a valid examination type."
+    if values["duration"] < 1 or values["max_marks"] < 1:
+        return None, "Duration and maximum marks must be at least 1."
+    if values["slot_end"] < values["slot_start"]:
+        return None, "Slot creation cannot end before it starts."
+    if values["booking_end"] < values["booking_start"]:
+        return None, "Booking cannot end before it starts."
+    return values, None
+
+@app.route("/admin/exams")
+def admin_exams():
+    exams = Examination.query.order_by(Examination.id).all()
+    return render_template("admin_exams.html", exams=exams)
+
+@app.route("/admin/exams/new", methods=["GET", "POST"])
+def new_exam():
+    courses = Course.query.order_by(Course.code).all()
+    if not courses:
+        flash("Add a course first, then you can create examinations.", "warning")
+        return redirect(url_for("admin_courses"))
+    if request.method == "POST":
+        values, error = read_exam_form()
+        if error:
+            flash(error, "danger")
+            return redirect(url_for("new_exam"))
+        db.session.add(Examination(**values))
+        db.session.commit()
+        flash("Examination added.", "success")
+        return redirect(url_for("admin_exams"))
+    return render_template("exam_form.html", exam=None, courses=courses, exam_types=EXAM_TYPES)
+
+@app.route("/admin/exams/<int:exam_id>/edit", methods=["GET", "POST"])
+def edit_exam(exam_id):
+    exam = db.get_or_404(Examination, exam_id)
+    if request.method == "POST":
+        values, error = read_exam_form()
+        if error:
+            flash(error, "danger")
+            return redirect(url_for("edit_exam", exam_id=exam.id))
+        exam.course_id = values["course_id"]
+        exam.name = values["name"]
+        exam.exam_type = values["exam_type"]
+        exam.duration = values["duration"]
+        exam.max_marks = values["max_marks"]
+        exam.slot_start = values["slot_start"]
+        exam.slot_end = values["slot_end"]
+        exam.booking_start = values["booking_start"]
+        exam.booking_end = values["booking_end"]
+        db.session.commit()
+        flash("Examination updated.", "success")
+        return redirect(url_for("admin_exams"))
+    courses = Course.query.order_by(Course.code).all()
+    return render_template("exam_form.html", exam=exam, courses=courses, exam_types=EXAM_TYPES)
+
+@app.route("/admin/exams/<int:exam_id>/delete", methods=["POST"])
+def delete_exam(exam_id):
+    exam = db.get_or_404(Examination, exam_id)
+    if exam.slots:
+        flash("Cannot delete: this examination already has slots.", "danger")
+    else:
+        for rubric in exam.rubrics:
+            db.session.delete(rubric)
+        for assignment in exam.assignments:
+            db.session.delete(assignment)
+        db.session.delete(exam)
+        db.session.commit()
+        flash("Examination deleted.", "success")
+    return redirect(url_for("admin_exams"))
 
 if __name__ == "__main__":
     app.run(debug=True)
