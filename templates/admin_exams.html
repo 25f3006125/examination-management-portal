@@ -1,5 +1,6 @@
 {% extends "admin_base.html" %}
 {% block admin_content %}
+{% set colors = {"Draft": "secondary", "Slot Craetion": "info", "Booking Open": "success", "Closed": "warning", "Completed": "dark"} %}
 <div class="d-flex justify-content-between align-items-center mb-3">
     <h3 class="mb-0">Examinations</h3>
     <a class="btn btn-primary" href="{{ url_for('new_exam') }}">+ New Examination</a>
@@ -31,7 +32,18 @@
                 <td>{{ exam.max_marks }}</td>
                 <td>{{ exam.slot_start }} to {{ exam.slot_end }}</td>
                 <td>{{ exam.booking_start }} to {{ exam.booking_end }}</td>
-                <td><span class="badge text-bg-secondary">{{ exam.status }}</span></td>
+                <td>
+                    <span class="badge text-bg-{{ colors[exam.status] }}">{{ exam.status }}</span>
+                    {% for action, p in phase.items() %}
+                    {% if exam.status in p["from"] %}
+                    <form method="post" action="{{ url_for('change_phase', exam_id=exam.id) }}" class="mt-1">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="{{ action }}">
+                        <button class="btn btn-sm btn-outline-dark">{{ p["label"] }}</button>
+                    </form>
+                    {% endif %}
+                    {% endfor %}
+                </td>
                 <td>
                     <a class="btn btn-sm btn-outline-primary" href="{{ url_for('edit_exam', exam_id=exam.id) }}">Edit</a>
                     <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('exam_rubrics', exam_id=exam.id) }}">Rubrics</a>

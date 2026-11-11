@@ -218,7 +218,7 @@ def read_exam_form():
 @app.route("/admin/exams")
 def admin_exams():
     exams = Examination.query.order_by(Examination.id).all()
-    return render_template("admin_exams.html", exams=exams)
+    return render_template("admin_exams.html", exams=exams, phase=PHASES)
 
 @app.route("/admin/exams/new", methods=["GET", "POST"])
 def new_exam():
@@ -424,6 +424,34 @@ def delete_assignment(assignment_id):
         db.session.commit()
         flash("Examiner removed from this examination.", "success")
     return redirect(url_for("exam_examiners", exam_id=exam_id))
+
+#Admin: examination phase
+
+PHASES = {
+    "open_slots": {"from": ["Draft", "Closed"], "to": "Slot Creation", "label": "Open slot cretaion"},
+    "close_slots": {"from": ["Slot Creation"], "to": "Closed", "label": "Closed slot creation"},
+    "open_booking": {"from": ["Closed"], "to": "Booking Open", "label": "Open Booking"},
+    "close_booking": {"from": ["Booking Open"], "to": "Closed", "label": "Close booking"},
+    "complete": {"from": ["Closed"], "to": "Completed", "label": "Mark Completed"},
+}
+@app.route("/admin/exams/<int:exam_id>/phase", methods=["POST"])
+def change_phase(exam_id):
+    exam = db.get_or_404(Examination, exam_id)
+    action = request.form["action"]
+    phase = PHASES.get(action)
+    if phase is None:
+        flash("Unknown action.", "danger")
+    elif exam.status not in phase["from"]:
+        flash(f"That is not possible while the examination is {exam.status}.", "danger")
+    elif action == "open_slots" and not exam.assignments:
+        flash("Assign atleast one examiner before opening slot creation.", "danger")
+    elif action == "open_booking" and not exam.slots:
+        flash("No slots exist yet, so booking cannot be opened.", "danger")
+    else:
+        exam.status = phase["to"]
+        db.session.commit()
+        flash(f"{exam.name} is now: {exam.status}.", "success")
+    return redirect(url_for("admin_exams"))
 
 if __name__ == "__main__":
     app.run(debug=True)
