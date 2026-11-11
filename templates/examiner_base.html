@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block content %}
+<ul class="nav nav-pills mb-4">
+    <li class="nav-item">
+        <a class="nav-link {% if request.path == '/examiner' %}active{% endif %}" href="{{ url_for('examiner_dashboard') }}">Dashboard</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if request.path.startswith('/examiner/exams') %}active{% endif %}" href="{{ url_for('examiner_exams') }}">Examinations</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if request.path.startswith('/examiner/slots') %}active{% endif %}" href="{{ url_for('examiner_slots') }}">Slots</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if request.path.startswith('/examiner/students') or request.path.startswith('/examiner/bookings') %}active{% endif %}" href="{{ url_for('examiner_students') }}">Students</a>
+    </li>
+    <li class="nav-item">
+        <a class="nav-link {% if request.path.startswith('/examiner/profile') %}active{% endif %}" href="{{ url_for('examiner_profile') }}">Profile</a>
+    </li>
+</ul>
+{% block examiner_content %}{% endblock %}
+{% endblock %}

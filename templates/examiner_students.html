@@ -1,0 +1,54 @@
+{% extends "examiner_base.html" %}
+{% block examiner_content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Booked Students</h3>
+    <div class="btn-group">
+        <a class="btn btn-outline-secondary {% if show != 'pending' %}active{% endif %}" href="{{ url_for('examiner_students') }}">All</a>
+        <a class="btn btn-outline-secondary {% if show == 'pending' %}active{% endif %}" href="{{ url_for('examiner_students', show='pending') }}">Pending evaluation</a>
+    </div>
+</div>
+<div class="table-responsive">
+    <table class="table table-striped bg-white align-middle">
+        <thead>
+            <tr>
+                <th>Booking</th>
+                <th>Student</th>
+                <th>Examination</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Evaluation</th>
+                <th>Visible to student</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for b in bookings %}
+            <tr>
+                <td>{{ b.id }}</td>
+                <td>{{ b.student.name }}<br><small class="text-muted">{{ b.student.email }}</small></td>
+                <td>{{ b.exam.name }}</td>
+                <td>{{ b.slot.date }}</td>
+                <td>{{ b.slot.start_time.strftime('%H:%M') }} - {{ b.slot.end_time.strftime('%H:%M') }}</td>
+                <td>
+                    {% if b.status == 'Completed' %}
+                    <span class="badge text-bg-success">{{ b.scores|sum(attribute='marks') }} / {{ b.exam.max_marks }}</span>
+                    {% else %}\
+                    <span class="badge text-bg-warning">Pending</span>
+                    {% endif %}
+                </td>
+                <td>{{ 'Yes' if b.published else 'No' }}</td>
+                <td>
+                    <a class="btn btn-sm btn-primary" href="{{ url_for('evaluate_booking', booking_id=b.id) }}">
+                        {% if b.status == 'Completed' %}Edit marks{% else %}Evaluate{% endif %}
+                    </a>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="8" class="text-center text-muted">No students are booked into your slots{% if show == 'pending' %} with a pending evaluation{% endif %}.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

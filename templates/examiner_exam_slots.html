@@ -1,0 +1,74 @@
+{% extends "examiner_base.html" %}
+{% block examiner_content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Slots: {{ exam.name }} <small class="text-muted">({{ exam.course.code }}, {{ exam.status }})</small></h3>
+    <a class="btn btn-secondary" href="{{ url_for('examiner_exams') }}">Back to examinations</a>
+</div>
+{% if problem %}
+<div class="alert alert-warning">{{ problem }} You can see your slots, but you cannot add or change them now.</div>
+{% endif %}
+<div class="table-responsive">
+    <table class="table table-striped bg-white align-middle">
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Capacity</th>
+                <th>Booked</th>
+                <th>Available</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in slots %}
+            <tr>
+                <td>{{ s.date }}</td>
+                <td>{{ s.start_time.strftime('%H:%M') }} - {{ s.end_time.strftime('%H:%M') }}</td>
+                <td>{{ s.capacity }}</td>
+                <td>{{ s.capacity - s.available }}</td>
+                <td>{{ s.available }}</td>
+                <td>{{ s.status }}</td>
+                <td>
+                    {% if not problem %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('edit_slot', slot_id=s.id) }}">Edit</a>
+                    <form method="post" action="{{ url_for('delete_slot', slot_id=s.id) }}" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <button class="btn btn-sm btn-outline-danger">Delete</button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="7" class="text-center text-muted">You have not created any slots for this examination yet.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% if not problem %}
+<div class="card" style="max-width: 600px;">
+    <div class="card-body">
+        <h5 class="mb-3">Add a slot</h5>
+        <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label class="form-label" for="date">Date</label>
+            <input class="form-control mb-3" type="date" id="date" name="date" min="{{ today }}" required>
+            <div class="row">
+                <div class="col-6">
+                    <label class="form-label" for="start_time">Start time</label>
+                    <input class="form-control mb-3" type="time" id="start_time" name="start_time" required>
+                </div>
+                <div class="col-6">
+                    <label class="form-label" for="end_time">End time</label>
+                    <input class="form-control mb-3" type="time" id="end_time" name="end_time" required>
+                </div>
+            </div>
+            <input class="form-control mb-3" type="number" min="1" name="capacity" placeholder="Maximum number of students" required>
+            <button class="btn btn-primary">Add slot</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "admin_base.html" %}
+{% block admin_content %}
+<h3 class="mb-3">Examination Slots</h3>
+<div class="table-responsive">
+    <table class="table table-striped bg-white align-middle">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Examination</th>
+                <th>Examiner</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Capacity</th>
+                <th>Booked</th>
+                <th>Available</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in slots %}
+            <tr>
+                <td>{{ s.id }}</td>
+                <td>{{ s.exam.name }}</td>
+                <td>{{ s.examiner.name }}</td>
+                <td>{{ s.date }}</td>
+                <td>{{ s.start_time.strftime('%H:%M') }} - {{ s.end_time.strftime('%H:%M') }}</td>
+                <td>{{ s.capacity }}</td>
+                <td>{{ s.capacity - s.available }}</td>
+                <td>{{ s.available }}</td>
+                <td>{{ s.status }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="9" class="text-center text-muted">No slots yet. Examiners create them during slot creation.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

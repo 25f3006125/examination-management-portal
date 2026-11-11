@@ -1,0 +1,47 @@
+{% extends "examiner_base.html" %}
+{% block examiner_content %}
+<h3 class="mb-3">My Examinations</h3>
+<div class="table-responsive">
+    <table class="table table-striped bg-white align-middle">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Course</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Duration</th>
+                <th>Max marks</th>
+                <th>Slot creation dates</th>
+                <th>Booking dates</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for exam in exams %}
+            <tr>
+                <td>{{ exam.id }}</td>
+                <td>{{ exam.course.code }}</td>
+                <td>{{ exam.name }}</td>
+                <td>{{ exam.exam_type }}</td>
+                <td>{{ exam.duration }} min</td>
+                <td>{{ exam.max_marks }}</td>
+                <td>{{ exam.slot_start }} to {{ exam.slot_end }}</td>
+                <td>{{ exam.booking_start }} to {{ exam.booking_end }}</td>
+                <td>
+                    <span class="badge text-bg-secondary">{{ exam.status }}</span>
+                    {% if open_now[exam.id] %}<span class="badge text-bg-success">Slot creation open</span>{% endif %}
+                </td>
+                <td>
+                    <a class="btn btn-sm btn-primary" href="{{ url_for('examiner_exam_slots', exam_id=exam.id) }}">Manage slots</a>
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="10" class="text-center text-muted">No examinations are assigned to you yet.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

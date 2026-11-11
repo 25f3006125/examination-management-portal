@@ -1,0 +1,43 @@
+{% extends "admin_base.html" %}
+{% block admin_content %}
+<h3 class="mb-3">Bookings</h3>
+<div class="table-responsive">
+    <table class="table table-striped bg-white align-middle">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Student</th>
+                <th>Examination</th>
+                <th>Examiner</th>
+                <th>Date</th>
+                <th>Time</th>
+                <th>Booked at</th>
+                <th>Status</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for b in bookings %}
+            <tr>
+                <td>{{ b.id }}</td>
+                <td>{{ b.student.name }}</td>
+                <td>{{ b.exam.name }}</td>
+                <td>{{ b.slot.examiner.name }}</td>
+                <td>{{ b.slot.date }}</td>
+                <td>{{ b.slot.start_time.strftime('%H:%M') }} - {{ b.slot.end_time.strftime('%H:%M') }}</td>
+                <td>{{ b.booked_at.strftime('%Y-%m-%d %H:%M') if b.booked_at else '' }}</td>
+                <td>{{ b.status }}</td>
+                <td>{% if b.status == 'Booked' and b.exam.status != 'Completed' %}
+                    <a class="btn btn-sm btn-outline-primary" href="{{ url_for('reschedule_booking', booking_id=b.id) }}">Reschedule</a>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="9" class="text-center text-muted">No bookings yet.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

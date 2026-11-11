@@ -25,6 +25,17 @@
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <button class="btn btn-sm btn-outline-danger">Remove</button>
                     </form>
+                    {% if available %}
+                    <form method="post" action="{{ url_for('replace_examiner', assignment_id=a.id) }}" class="d-inline-flex gap-1">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <select class="form-select form-select-sm" name="examiner_id">
+                            {% for e in available %}
+                            <option value="{{ e.user_id }}">{{ e.user.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <button class="btn btn-sm btn-outline-warning">Replace</button>
+                    </form>
+                    {% endif %}
                 </td>
             </tr>
             {% else %}
@@ -52,7 +63,7 @@
         <p class="text-muted mb-0">No approved examiners are available. Approve or add one on the
             <a href="{{ url_for('admin_examiners') }}">Examiners page</a>.
         </p>
-    {% endif %}
+        {% endif %}
     </div>
 </div>
 {% endblock %}

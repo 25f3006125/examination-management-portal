@@ -1,5 +1,5 @@
 import os
-from datetime import date
+from datetime import date, time
 from flask import Flask, render_template, request, redirect, url_for, flash, abort
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_wtf import CSRFProtect
@@ -101,14 +101,9 @@ def logout():
     flash("You have been logged out.", "info")
     return redirect(url_for("login"))
 
-@app.route("/examiner")
-def examiner_dashboard():
-    return render_template("examiner_dashboard.html")
-
 @app.route("/student")
 def student_dashboard():
     return render_template("student_dashboard.html")
-
 
 #Admin: Dashboard
 @app.route("/admin")
@@ -118,8 +113,8 @@ def admin_dashboard():
         ("Examinations", Examination.query.count(), url_for("admin_exams")),
         ("Examiners", User.query.filter_by(role="examiner").count(), url_for("admin_examiners")),
         ("Students", User.query.filter_by(role="student").count(), url_for("admin_students")),
-        ("Exam slots", Slot.query.count(), None),
-        ("Bookings", Booking.query.count(), None),
+        ("Exam slots", Slot.query.count(), url_for("admin_slots")),
+        ("Bookings", Booking.query.count(), url_for("admin_bookings")),
     ]
     return render_template("admin_dashboard.html", stats=stats)
 
@@ -426,7 +421,6 @@ def delete_assignment(assignment_id):
     return redirect(url_for("exam_examiners", exam_id=exam_id))
 
 #Admin: examination phase
-
 PHASES = {
     "open_slots": {"from": ["Draft", "Closed"], "to": "Slot Creation", "label": "Open slot cretaion"},
     "close_slots": {"from": ["Slot Creation"], "to": "Closed", "label": "Closed slot creation"},
@@ -452,6 +446,268 @@ def change_phase(exam_id):
         db.session.commit()
         flash(f"{exam.name} is now: {exam.status}.", "success")
     return redirect(url_for("admin_exams"))
+
+#Admin: slots, bookings and search
+@app.route("/admin/slots")
+def admin_slots():
+    slots = Slot.query.order_by(Slot.date, Slot.start_time).all()
+    return render_template("admin_slots.html", slots=slots)
+
+@app.route("/admin/bookings")
+def admin_bookings():
+    bookings = Booking.query.order_by(Booking.id.desc()).all()
+    return render_template("admin_bookings.html", bookings=bookings)
+
+@app.route("/admin/search")
+def admin_search():
+    q = request.args.get("q", "").strip()
+    results = {"students": [], "examiners": [], "exams": [], "bookings": []}
+    if q:
+        like = f"%{q}%"
+        q_id = int(q) if q.isdigit() and len(q) < 10 else -1
+        results["students"] = User.query.filter(
+            User.role == "student",
+            db.or_(User.name.ilike(like), User.email.ilike(like), User.id == q_id)).all()
+        results["examiners"] = Examiner.query.join(User).filter(
+            db.or_(User.name.ilike(like), User.email.ilike(like), Examiner.id == q_id)).all()
+        results["exams"] = Examination.query.join(Course).filter(
+            db.or_(Examination.name.ilike(like), Course.code.ilike(like), Examination.id == q_id)).all()
+        results["bookings"] = (Booking.query.join(User, Booking.student_id == User.id).join(Examination, Booking.exam_id == Examination.id)
+            .filter(db.or_(User.name.ilike(like), Examination.name.ilike(like), Booking.id == q_id)).all())
+    return render_template("admin_search.html", q=q, results=results)
+
+@app.route("/admin/bookings/<int:booking_id>/reschedule", methods=["GET", "POST"])
+def reschedule_booking(booking_id):
+    booking = db.get_or_404(Booking, booking_id)
+    if booking.status != "Booked" or booking.exam.status == "Completed":
+        flash("Only active bookings of examinations that are not completed can be rescheduled.", "danger")
+        return redirect(url_for("admin_bookings"))
+    old_slot = booking.slot
+    if request.method == "POST":
+        try:
+            new_id = int(request.form["slot_id"])
+        except ValueError:
+            new_id = 0
+        new_slot = db.session.get(Slot, new_id)
+        if (new_slot is None or new_slot.exam_id != booking.exam_id or new_slot.id == old_slot.id
+                or new_slot.status != "Available" or new_slot.available < 1):
+            flash("Please choose another slot of the same examination that still has a free seat.", "danger")
+            return redirect(url_for("reschedule_booking", booking_id=booking.id))
+        new_slot.available -= 1
+        if new_slot.available == 0:
+            new_slot.status = "Full"
+        old_slot.available += 1
+        if old_slot.status == "Full":
+            old_slot.status = "Available"
+        booking.slot = new_slot
+        db.session.commit()
+        flash("Booking moved to the new slot.", "success")
+        return redirect(url_for("admin_bookings"))
+    slots = Slot.query.filter(Slot.exam_id == booking.exam_id, Slot.id != old_slot.id, Slot.status == "Available", 
+                              Slot.available > 0).order_by(Slot.date, Slot.start_time).all()
+    return render_template("reschedule_form.html", booking=booking, slots=slots)
+
+@app.route("/admin/assignments/<int:assignment_id>/replace", methods=["POST"])
+def replace_examiner(assignment_id):
+    assignment = db.get_or_404(ExamAssignment, assignment_id)
+    exam_id = assignment.exam_id
+    old_id = assignment.examiner_id
+    try:
+        new_id = int(request.form["examiner_id"])
+    except ValueError:
+        new_id = 0
+    new_examiner = Examiner.query.filter_by(user_id=new_id, status="Approved").first()
+    already = ExamAssignment.query.filter_by(exam_id=exam_id, examiner_id=new_id).first()
+    if new_examiner is None:
+        flash("Please choose an approved examiner.", "danger")
+    elif already:
+        flash("That examiner is already assigned to this examination.", "warning")
+    else:
+        slots = Slot.query.filter_by(exam_id=exam_id, examiner_id=old_id).all()
+        for slot in slots:
+            slot.examiner_id = new_id
+        assignment.examiner_id = new_id
+        db.session.commit()
+        flash(f"Examiner replaced by {new_examiner.user.name}. {len(slots)} slot(s) moved to the new examiner.", "success")
+    return redirect(url_for("exam_examiners", exam_id=exam_id))
+
+def get_my_exam(exam_id):
+    assignment = ExamAssignment.query.filter_by(exam_id=exam_id, examiner_id=current_user.id).first()
+    if assignment is None:
+        abort(403)
+    return assignment.exam
+def get_my_slot(slot_id):
+    slot = db.get_or_404(Slot, slot_id)
+    if slot.examiner_id != current_user.id:
+        abort(403)
+    return slot
+def slot_window_problem(exam):
+    today = date.today()
+    if exam.status != "Slot Creation":
+        return "Slot creation is not open for this examination."
+    if today < exam.slot_start or today > exam.slot_end:
+        return f"Slots can only be managed between {exam.slot_start} and {exam.slot_end}."
+    return None
+def slot_change_problem(slot):
+    problem = slot_window_problem(slot.exam)
+    if problem:
+        return problem
+    if Booking.query.filter_by(slot_id=slot.id).first():
+        return "This slot has bookings, so it cannot be changed or removed."
+    return None
+def read_slot_form(slot=None):
+    try:
+        slot_date = date.fromisoformat(request.form["date"])
+        start = time.fromisoformat(request.form["start_time"])
+        end = time.fromisoformat(request.form["end_time"])
+        capacity = int(request.form["capacity"])
+    except ValueError:
+        return None, "Please fill in the date, both times and the capacity correctly."
+    if slot_date < date.today():
+        return None, "The slot date cannot be in the past."
+    if end <= start:
+        return None, "The end time must be after the start time."
+    if capacity < 1:
+        return None, "Capacity must be at least 1."
+    for other in Slot.query.filter_by(examiner_id=current_user.id, date=slot_date).all():
+        if slot is not None and other.id == slot.id:
+            continue
+        if start < other.end_time and end > other.start_time:
+            return None, f"This overlaps with another of your slots ({other.start_time.strftime('%H:%M')} - {other.end_time.strftime('%H:%M')})."
+    return {"date": slot_date, "start_time": start, "end_time": end, "capacity": capacity}, None
+@app.route("/examiner")
+def examiner_dashboard():
+    me = current_user.id
+    my_bookings = Booking.query.join(Slot).filter(Slot.examiner_id == me)
+    stats = [
+        ("Assigned examinations", ExamAssignment.query.filter_by(examiner_id=me).count(), url_for("examiner_exams")),
+        ("Slots created", Slot.query.filter_by(examiner_id=me).count(), url_for("examiner_slots")),
+        ("Students booked", my_bookings.filter(Booking.status != "Cancelled").count(), url_for("examiner_students")),
+        ("Pending evaluations", my_bookings.filter(Booking.status == "Booked").count(), url_for("examiner_students", show="pending")),
+    ]
+    return render_template("examiner_dashboard.html", stats=stats)
+@app.route("/examiner/exams")
+def examiner_exams():
+    assignments = ExamAssignment.query.filter_by(examiner_id=current_user.id).order_by(ExamAssignment.id).all()
+    exams = [a.exam for a in assignments]
+    open_now = {e.id: slot_window_problem(e) is None for e in exams}
+    return render_template("examiner_exams.html", exams=exams, open_now=open_now)
+@app.route("/examiner/exams/<int:exam_id>/slots", methods=["GET", "POST"])
+def examiner_exam_slots(exam_id):
+    exam = get_my_exam(exam_id)
+    problem = slot_window_problem(exam)
+    if request.method == "POST":
+        if problem:
+            flash(problem, "danger")
+        else:
+            values, error = read_slot_form()
+            if error:
+                flash(error, "danger")
+            else:
+                db.session.add(Slot(exam_id=exam.id, examiner_id=current_user.id,available=values["capacity"], **values))
+                db.session.commit()
+                flash("Slot added.", "success")
+        return redirect(url_for("examiner_exam_slots", exam_id=exam.id))
+    slots = Slot.query.filter_by(exam_id=exam.id, examiner_id=current_user.id).order_by(Slot.date, Slot.start_time).all()
+    return render_template("examiner_exam_slots.html", exam=exam, slots=slots, problem=problem, today=date.today())
+@app.route("/examiner/slots")
+def examiner_slots():
+    slots = Slot.query.filter_by(examiner_id=current_user.id).order_by(Slot.date, Slot.start_time).all()
+    return render_template("examiner_slots.html", slots=slots)
+@app.route("/examiner/slots/<int:slot_id>/edit", methods=["GET", "POST"])
+def edit_slot(slot_id):
+    slot = get_my_slot(slot_id)
+    problem = slot_change_problem(slot)
+    if problem:
+        flash(problem, "danger")
+        return redirect(url_for("examiner_exam_slots", exam_id=slot.exam_id))
+    if request.method == "POST":
+        values, error = read_slot_form(slot)
+        if error:
+            flash(error, "danger")
+            return redirect(url_for("edit_slot", slot_id=slot.id))
+        slot.date = values["date"]
+        slot.start_time = values["start_time"]
+        slot.end_time = values["end_time"]
+        slot.capacity = values["capacity"]
+        slot.available = values["capacity"]
+        db.session.commit()
+        flash("Slot updated.", "success")
+        return redirect(url_for("examiner_exam_slots", exam_id=slot.exam_id))
+    return render_template("slot_form.html", slot=slot, today=date.today())
+@app.route("/examiner/slots/<int:slot_id>/delete", methods=["POST"])
+def delete_slot(slot_id):
+    slot = get_my_slot(slot_id)
+    exam_id = slot.exam_id
+    problem = slot_change_problem(slot)
+    if problem:
+        flash(problem, "danger")
+    else:
+        db.session.delete(slot)
+        db.session.commit()
+        flash("Slot removed.", "success")
+    return redirect(url_for("examiner_exam_slots", exam_id=exam_id))
+@app.route("/examiner/students")
+def examiner_students():
+    show = request.args.get("show", "all")
+    query = (Booking.query.join(Slot)
+             .filter(Slot.examiner_id == current_user.id, Booking.status != "Cancelled"))
+    if show == "pending":
+        query = query.filter(Booking.status == "Booked")
+    bookings = query.order_by(Slot.date, Slot.start_time).all()
+    return render_template("examiner_students.html", bookings=bookings, show=show)
+@app.route("/examiner/bookings/<int:booking_id>/evaluate", methods=["GET", "POST"])
+def evaluate_booking(booking_id):
+    booking = db.get_or_404(Booking, booking_id)
+    if booking.slot.examiner_id != current_user.id:
+        abort(403)
+    if booking.status == "Cancelled":
+        flash("This booking was cancelled, so it cannot be evaluated.", "danger")
+        return redirect(url_for("examiner_students"))
+    rubrics = booking.exam.rubrics
+    if not rubrics:
+        flash("This examination has no rubric criteria yet. Ask the Admin to add them.", "danger")
+        return redirect(url_for("examiner_students"))
+    if request.method == "POST":
+        marks = {}
+        for rubric in rubrics:
+            try:
+                value = int(request.form[f"marks_{rubric.id}"])
+            except (ValueError, KeyError):
+                value = -1
+            if value < 0 or value > rubric.max_marks:
+                flash(f"Marks for {rubric.criterion} must be a whole number from 0 to {rubric.max_marks}.", "danger")
+                return redirect(url_for("evaluate_booking", booking_id=booking.id))
+            marks[rubric.id] = value
+        for rubric in rubrics:
+            score = Score.query.filter_by(booking_id=booking.id, rubric_id=rubric.id).first()
+            if score is None:
+                score = Score(booking_id=booking.id, rubric_id=rubric.id, marks=0)
+                db.session.add(score)
+            score.marks = marks[rubric.id]
+        booking.remarks = request.form.get("remarks", "").strip()
+        booking.published = "publish" in request.form
+        booking.status = "Completed"
+        db.session.commit()
+        flash("Evaluation saved.", "success")
+        return redirect(url_for("examiner_students"))
+    saved = {s.rubric_id: s.marks for s in booking.scores}
+    return render_template("evaluate_form.html", booking=booking, rubrics=rubrics, saved=saved)
+
+@app.route("/examiner/profile", methods=["GET", "POST"])
+def examiner_profile():
+    if request.method == "POST":
+        name = request.form["name"].strip()
+        if not name:
+            flash("Name is required.", "danger")
+            return redirect(url_for("examiner_profile"))
+        current_user.name = name
+        current_user.phone = request.form["phone"].strip()
+        current_user.department = request.form["department"].strip()
+        db.session.commit()
+        flash("Profile updated.", "success")
+        return redirect(url_for("examiner_profile"))
+    return render_template("examiner_profile.html")
 
 if __name__ == "__main__":
     app.run(debug=True)

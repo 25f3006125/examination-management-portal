@@ -1,0 +1,107 @@
+{% extends "admin_base.html" %}
+{% block admin_content %}
+<h3 class="mb-3">Search results{% if q %} for "{{ q }}"{% endif %}</h3>
+{% if not q %}
+<p class="text-muted">Type a name or an ID in the search box above.</p>
+{% elif not (results.students or results.examiners or results.exams or results.bookings) %}
+<p class="text-muted">Nothing matches "{{ q }}".</p>
+{% endif %}
+{% if results.students %}
+<h5 class="mt-4">Students</h5>
+<table class="table table-striped bg-white">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Department</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for s in results.students %}
+        <tr>
+            <td>{{ s.id }}</td>
+            <td>{{ s.name }}</td>
+            <td>{{ s.email }}</td>
+            <td>{{ s.department or '' }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% if results.examiners %}
+<h5 class="mt-4">Examiners</h5>
+<table class="table table-striped bg-white">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Department</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for e in results.examiners %}
+        <tr>
+            <td>{{ e.id }}</td>
+            <td>{{ e.user.name }}</td>
+            <td>{{ e.user.email }}</td>
+            <td>{{ e.user.department or '' }}</td>
+            <td>{{ e.status }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% if results.exams %}
+<h5 class="mt-4">Examinations</h5>
+<table class="table table-striped bg-white">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Course</th>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for x in results.exams %}
+        <tr>
+            <td>{{ x.id }}</td>
+            <td>{{ x.course.code }}</td>
+            <td>{{ x.name }}</td>
+            <td>{{ x.exam_type }}</td>
+            <td>{{ x.status }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% if results.bookings %}
+<h5 class="mt-4">Bookings</h5>
+<table class="table table-striped bg-white">
+    <thead>
+        <tr>
+            <th>ID</th>
+            <th>Student</th>
+            <th>Examination</th>
+            <th>Date</th>
+            <th>Status</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for b in results.bookings %}
+        <tr>
+            <td>{{ b.id }}</td>
+            <td>{{ b.student.name }}</td>
+            <td>{{ b.exam.name }}</td>
+            <td>{{ b.slot.date }}</td>
+            <td>{{ b.status }}</td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% endblock %}

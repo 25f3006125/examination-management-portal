@@ -1,0 +1,26 @@
+{% extends "examiner_base.html" %}
+{% block examiner_content %}
+<div class="card" style="max-width: 600px;">
+    <div class="card-body">
+        <h4 class="mb-3">Edit slot <small class="text-muted">{{ slot.exam.name }}</small></h4>
+        <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label class="form-label" for="date">Date</label>
+            <input class="form-control mb-3" type="date" id="date" name="date" min="{{ today }}" value="{{ slot.date }}" required>
+            <div class="row">
+                <div class="col-6">
+                    <label class="form-label" for="start_time">Start time</label>
+                    <input class="form-control mb-3" type="time" id="start_time" name="start_time" value="{{ slot.start_time.strftime('%H:%M') }}" required>
+                </div>
+                <div class="col-6">
+                    <label class="form-label" for="end_time">End time</label>
+                    <input class="form-control mb-3" type="time" id="end_time" name="end_time" value="{{ slot.end_time.strftime('%H:%M') }}" required>
+                </div>
+            </div>
+            <input class="form-control mb-3" type="number" min="1" name="capacity" placeholder="Maximum number of students" value="{{ slot.capacity }}" required>
+            <button class="btn btn-primary">Save</button>
+            <a class="btn btn-secondary" href="{{ url_for('examiner_exam_slots', exam_id=slot.exam_id) }}">Cancel</a>
+        </form>
+    </div>
+</div>
+{% endblock %}
