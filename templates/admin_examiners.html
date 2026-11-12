@@ -1,60 +1,68 @@
 {% extends "admin_base.html" %}
 {% block admin_content %}
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h3 class="mb-0">Examiners</h3>
-  <a class="btn btn-primary" href="{{ url_for('new_examiner') }}">+ New Examiner</a>
+    <h3 class="mb-0">Examiners</h3>
+    <a class="btn btn-primary" href="{{ url_for('new_examiner') }}">+ New Examiner</a>
 </div>
 <div class="table-responsive">
-  <table class="table table-striped bg-white align-middle">
-    <thead>
-        <tr>
-            <th>ID</th>
-            <th>Name</th>
-            <th>Email</th>
-            <th>Phone</th>
-            <th>Department</th>
-            <th>Exams</th>
-            <th>Status</th>
-            <th>Actions</th>
-        </tr>
-    </thead>
-    <tbody>
-        {% for e in examiners %}
-        <tr>
-            <td>{{ e.id }}</td>
-            <td>{{ e.user.name }}</td>
-            <td>{{ e.user.email }}</td>
-            <td>{{ e.user.phone or '' }}</td>
-            <td>{{ e.user.department or '' }}</td>
-            <td>{{ e.user.assignments|length }}</td>
-            <td>
-                {% if e.status == 'Approved' %}<span class="badge text-bg-success">Approved</span>
-                {% elif e.status == 'Pending' %}<span class="badge text-bg-warning">Pending</span>
-                {% else %}<span class="badge text-bg-secondary">{{ e.status }}</span>{% endif %}
-            </td>
-            <td>
-                {% if e.status != 'Approved' %}
-                <form method="post" action="{{ url_for('set_examiner_status', examiner_id=e.id) }}" class="d-inline">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="status" value="Approved">
-                    <button class="btn btn-sm btn-success">{% if e.status == 'Pending' %}Approve{% else %}Reactivate{% endif %}</button>
-                </form>
-                {% endif %}
-                {% if e.status != 'Deactivated' %}
-                <form method="post" action="{{ url_for('set_examiner_status', examiner_id=e.id) }}" class="d-inline">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                    <input type="hidden" name="status" value="Deactivated">
-                    <button class="btn btn-sm btn-outline-danger">{% if e.status == 'Pending' %}Reject{% else %}Deactivate{% endif %}</button>
-                </form>
-                {% endif %}
-            </td>
-        </tr>
-        {% else %}
-        <tr>
-            <td colspan="8" class="text-center text-muted">No examiners yet.</td>
-        </tr>
-        {% endfor %}
-    </tbody>
-</table>
+    <table class="table table-striped bg-white align-middle">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Phone</th>
+                <th>Department</th>
+                <th>Exams</th>
+                <th>Status</th>
+                <th>Actions</th>
+            </tr >
+        </thead>
+        <tbody>
+            {% for e in examiners %}
+            <tr>
+                <td>{{ e.id }}</td>
+                <td>{{ e.user.name }}</td>
+                <td>{{ e.user.email }}</td>
+                <td>{{ e.user.phone or '' }}</td>
+                <td>{{ e.user.department or '' }}</td>
+                <td>{{ e.user.assignments|length }}</td>
+                <td>
+                    {% if e.status == 'Approved' %}
+                    <span class="badge text-bg-success">Approved</span>
+                    {% elif e.status == 'Pending' %}
+                    <span class="badge text-bg-warning">Pending</span>
+                    {% else %}
+                    <span class="badge text-bg-secondary">{{ e.status }}</span>
+                    {% endif %}
+                </td>
+                <td>
+                    {% if e.status != 'Approved' %}
+                    <form method="post" action="{{ url_for('set_examiner_status', examiner_id=e.id) }}" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="status" value="Approved">
+                        <button class="btn btn-sm btn-success">
+                            {% if e.status == 'Pending' %}Approve{% else %}Reactivate{% endif %}
+                        </button>
+                    </form>
+                    {% endif %}
+                    {% if e.status != 'Deactivated' %}
+                    <form method="post" action="{{ url_for('set_examiner_status', examiner_id=e.id) }}" class="d-inline">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="status" value="Deactivated">
+                        <button class="btn btn-sm btn-outline-danger">
+                            {% if e.status == 'Pending' %}Reject{% else %}Deactivate{% endif %}
+                        </button>
+                    </form>
+                    {% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="8" class="text-center text-muted">No examiners yet.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 {% endblock %}

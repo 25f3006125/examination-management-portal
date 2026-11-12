@@ -72,7 +72,7 @@ def register():
         user = User(email=email, name=name, phone=phone, department=department, role=role, password_hash=generate_password_hash(password))
         db.session.add(user)
         if role == "examiner":
-            db.session.add(Examiner(user=user))   # status starts as "Pending"
+            db.session.add(Examiner(user=user)) 
         db.session.commit()
         flash("Successfully registered! Plaese log in. Examiners can log in after the Admin approves them.", "success")
         return redirect(url_for("login"))

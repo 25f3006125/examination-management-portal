@@ -4,11 +4,17 @@
   <h3 class="mb-0">Courses</h3>
   <a class="btn btn-primary" href="{{ url_for('new_course') }}">+ New Course</a>
 </div>
-
 <div class="table-responsive">
   <table class="table table-striped bg-white align-middle">
     <thead>
-      <tr><th>ID</th><th>Code</th><th>Name</th><th>Description</th><th>Status</th><th>Actions</th></tr>
+      <tr>
+        <th>ID</th>
+        <th>Code</th>
+        <th>Name</th>
+        <th>Description</th>
+        <th>Status</th>
+        <th>Actions</th>
+      </tr>
     </thead>
     <tbody>
       {% for course in courses %}
@@ -28,7 +34,8 @@
       </tr>
       {% else %}
       <tr>
-        <td colspan="6" class="text-center text-muted">No courses yet.</td></tr>
+        <td colspan="6" class="text-center text-muted">No courses yet.</td>
+      </tr>
       {% endfor %}
     </tbody>
   </table>

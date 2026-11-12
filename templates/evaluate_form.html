@@ -2,34 +2,33 @@
 {% block examiner_content %}
 <div class="card" style="max-width: 650px;">
     <div class="card-body">
-    <h4 class="mb-3">Evaluate: {{ booking.student.name }}</h4>
-    <p class="mb-1"><strong>Examination:</strong> {{ booking.exam.name }} ({{ booking.exam.max_marks }} marks)</p>
-    <p class="mb-3"><strong>Slot:</strong> {{ booking.slot.date }}, {{ booking.slot.start_time.strftime('%H:%M') }} - {{ booking.slot.end_time.strftime('%H:%M') }}</p>
-
-    <form method="post">
-      <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-
-      {% for r in rubrics %}
-      <div class="mb-3">
-        <label class="form-label" for="marks_{{ r.id }}">
-          {{ r.criterion }} <span class="text-muted">(0 to {{ r.max_marks }})</span>
-        </label>
-        {% if r.description %}<div class="form-text mb-1">{{ r.description }}</div>{% endif %}
-        <input class="form-control" type="number" min="0" max="{{ r.max_marks }}" id="marks_{{ r.id }}" name="marks_{{ r.id }}" value="{{ saved.get(r.id, '') }}" required>
-      </div>
-      {% endfor %}
-
-      <label class="form-label" for="remarks">Remarks</label>
-      <textarea class="form-control mb-3" id="remarks" name="remarks" rows="3" placeholder="Feedback for the student">{{ booking.remarks or '' }}</textarea>
-
-      <div class="form-check mb-3">
-        <input class="form-check-input" type="checkbox" id="publish" name="publish" {% if booking.published %}checked{% endif %}>
-        <label class="form-check-label" for="publish">Publish the result to the student now</label>
-      </div>
-
-      <button class="btn btn-primary">Submit evaluation</button>
-      <a class="btn btn-secondary" href="{{ url_for('examiner_students') }}">Cancel</a>
-    </form>
-  </div>
+        <h4 class="mb-3">Evaluate: {{ booking.student.name }}</h4>
+        <p class="mb-1"><strong>Examination:</strong> {{ booking.exam.name }} ({{ booking.exam.max_marks }} marks)</p>
+        <p class="mb-3"><strong>Slot:</strong> {{ booking.slot.date }}, {{ booking.slot.start_time.strftime('%H:%M') }} - {{ booking.slot.end_time.strftime('%H:%M') }}</p>
+        <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            {% for r in rubrics %}
+            <div class="mb-3">
+                <label class="form-label" for="marks_{{ r.id }}">
+                    {{ r.criterion }} <span class="text-muted">(0 to {{ r.max_marks }})</span>
+                </label>
+                {% if r.description %}
+                <div class="form-text mb-1">
+                    {{ r.description }}
+                </div>
+                {% endif %}
+                <input class="form-control" type="number" min="0" max="{{ r.max_marks }}" id="marks_{{ r.id }}" name="marks_{{ r.id }}" value="{{ saved.get(r.id, '') }}" required>
+            </div>
+            {% endfor %}
+            <label class="form-label" for="remarks">Remarks</label>
+            <textarea class="form-control mb-3" id="remarks" name="remarks" rows="3" placeholder="Feedback for the student">{{ booking.remarks or '' }}</textarea>
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="publish" name="publish" {% if booking.published %}checked{% endif %}>
+                <label class="form-check-label" for="publish">Publish the result to the student now</label>
+            </div>
+            <button class="btn btn-primary">Submit evaluation</button>
+            <a class="btn btn-secondary" href="{{ url_for('examiner_students') }}">Cancel</a>
+        </form>
+    </div>
 </div>
 {% endblock %}
