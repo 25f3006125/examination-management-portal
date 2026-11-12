@@ -1,0 +1,50 @@
+{% extends "student_base.html" %}
+{% block student_content %}
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Booking #{{ booking.id }}: {{ booking.exam.name }}</h3>
+    <a class="btn btn-secondary" href="{{ url_for('student_history') }}">Back to history</a>
+</div>
+<div class="card mb-4" style="max-width: 650px;">
+    <div class="card-body">
+        <p class="mb-1"><strong>Course:</strong> {{ booking.exam.course.code }} - {{ booking.exam.course.name }}</p>
+        <p class="mb-1"><strong>Slot:</strong> {{ booking.slot.date }}, {{ booking.slot.start_time.strftime('%H:%M') }} - {{ booking.slot.end_time.strftime('%H:%M') }}</p>
+        <p class="mb-1"><strong>Examiner:</strong> {{ booking.slot.examiner.name }}</p>
+        <p class="mb-0"><strong>Status:</strong> {{ booking.status }}</p>
+    </div>
+</div>
+{% if show_result %}
+<div class="card" style="max-width: 650px;">
+    <div class="card-body">
+        <h5 class="mb-3">Result</h5>
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Criterion</th>
+                    <th>Marks</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for r in booking.exam.rubrics %}
+                <tr>
+                    <td>{{ r.criterion }}</td>
+                    <td>{{ scores.get(r.id, 0) }} / {{ r.max_marks }}</td>
+                </tr>
+                {% endfor %}
+                <tr class="table-light">
+                    <td><strong>Total</strong></td>
+                    <td><strong>{{ total }} / {{ booking.exam.max_marks }}</strong></td>
+                </tr>
+            </tbody>
+        </table>
+        <p class="mb-1"><strong>Examiner's remarks:</strong></p>
+        <p class="mb-0">{{ booking.remarks or 'No remarks.' }}</p>
+    </div>
+</div>
+{% elif booking.status == 'Completed' %}
+<div class="alert alert-info">Your examination has been evaluated, but the examiner has not published the result yet.</div>
+{% elif booking.status == 'Booked' %}
+<div class="alert alert-info">This examination has not been evaluated yet.</div>
+{% else %}
+<div class="alert alert-secondary">This booking was cancelled.</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,63 @@
+{% extends "student_base.html" %}
+{% block student_content %}
+{% set colors = {"Slot Creation": "info", "Booking Open": "success", "Closed": "warning", "Completed": "dark"} %}
+<h3 class="mb-3">Examinations</h3>
+<form class="row g-2 mb-3" method="get">
+    <div class="col-md-4">
+        <input class="form-control" type="search" name="q" placeholder="Search by examination or course" value="{{ q }}">
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" name="type">
+            <option value="">All types</option>
+            {% for t in exam_types %}
+            <option value="{{ t }}" {% if exam_type == t %}selected{% endif %}>{{ t }}</option>
+            {% endfor %}
+        </select>
+    </div>
+    <div class="col-md-3">
+        <select class="form-select" name="show">
+            <option value="open" {% if show != 'all' %}selected{% endif %}>Open for booking</option>
+            <option value="all" {% if show == 'all' %}selected{% endif %}>All examinations</option>
+        </select>
+    </div>
+    <div class="col-md-2">
+        <button class="btn btn-outline-primary w-100">Filter</button>
+    </div>
+</form>
+<div class="table-responsive">
+    <table class="table table-striped bg-white align-middle">
+        <thead>
+            <tr>
+                <th>Course</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Duration</th>
+                <th>Max marks</th>
+                <th>Booking dates</th>
+                <th>Status</th>
+                <th>My booking</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for exam in exams %}
+            <tr>
+                <td>{{ exam.course.code }}</td>
+                <td>{{ exam.name }}</td>
+                <td>{{ exam.exam_type }}</td>
+                <td>{{ exam.duration }} min</td>
+                <td>{{ exam.max_marks }}</td>
+                <td>{{ exam.booking_start }} to {{ exam.booking_end }}</td>
+                <td><span class="badge text-bg-{{ colors[exam.status] }}">{{ exam.status }}</span></td>
+                <td>{% if exam.id in booked_ids %}<span class="badge text-bg-primary">Booked</span>{% else %}-{% endif %}</td>
+                <td><a class="btn btn-sm btn-primary" href="{{ url_for('student_exam_slots', exam_id=exam.id) }}">View slots</a></td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="9" class="text-center text-muted">No examinations match. Try "All examinations" or clear the search.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}

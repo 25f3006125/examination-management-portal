@@ -1,5 +1,5 @@
 import os
-from datetime import date, time
+from datetime import date, time, datetime
 from flask import Flask, render_template, request, redirect, url_for, flash, abort
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from flask_wtf import CSRFProtect
@@ -100,10 +100,6 @@ def logout():
     logout_user()
     flash("You have been logged out.", "info")
     return redirect(url_for("login"))
-
-@app.route("/student")
-def student_dashboard():
-    return render_template("student_dashboard.html")
 
 #Admin: Dashboard
 @app.route("/admin")
@@ -708,6 +704,168 @@ def examiner_profile():
         flash("Profile updated.", "success")
         return redirect(url_for("examiner_profile"))
     return render_template("examiner_profile.html")
+
+#Student
+def my_booked_exam_ids():
+    rows = Booking.query.filter(Booking.student_id == current_user.id, Booking.status != "Cancelled").all()
+    return {b.exam_id for b in rows}
+def booking_window_problem(exam):
+    today = date.today()
+    if exam.status != "Booking Open":
+        return "Booking is not open for this examination."
+    if today < exam.booking_start or today > exam.booking_end:
+        return f"Booking is only possible between {exam.booking_start} and {exam.booking_end}."
+    return None
+def slot_bookable(slot):
+    starts = datetime.combine(slot.date, slot.start_time)
+    return slot.status == "Available" and slot.available > 0 and starts > datetime.now()
+def get_my_booking(booking_id):
+    booking = db.get_or_404(Booking, booking_id)
+    if booking.student_id != current_user.id:
+        abort(403)
+    return booking
+
+@app.route("/student")
+def student_dashboard():
+    booked_ids = my_booked_exam_ids()
+    open_exams = [e for e in Examination.query.filter_by(status="Booking Open").all() 
+                  if booking_window_problem(e) is None and e.id not in booked_ids]
+    open_slots = 0
+    for exam in open_exams:
+        for slot in exam.slots:
+            if slot_bookable(slot):
+                open_slots += 1
+    mine = Booking.query.filter_by(student_id=current_user.id)
+    upcoming = [b for b in mine.filter_by(status="Booked").all()
+                if datetime.combine(b.slot.date, b.slot.start_time) > datetime.now()]
+    stats = [
+        ("Available examinations", len(open_exams), url_for("student_exams")),
+        ("Available slots", open_slots, url_for("student_exams")),
+        ("Upcoming examinations", len(upcoming), url_for("student_schedule")),
+        ("Booked slots", mine.filter(Booking.status != "Cancelled").count(), url_for("student_history")),
+        ("Published results", mine.filter_by(status="Completed", published=True).count(), url_for("student_results")),
+    ]
+    return render_template("student_dashboard.html", stats=stats)
+
+@app.route("/student/exams")
+def student_exams():
+    q = request.args.get("q", "").strip()
+    exam_type = request.args.get("type", "")
+    show = request.args.get("show", "open")
+    query = Examination.query.join(Course).filter(Examination.status != "Draft")
+    if show != "all":
+        query = query.filter(Examination.status == "Booking Open")
+    if q:
+        like = f"%{q}%"
+        query = query.filter(db.or_(Examination.name.ilike(like), Course.code.ilike(like), Course.name.ilike(like)))
+    if exam_type in EXAM_TYPES:
+        query = query.filter(Examination.exam_type == exam_type)
+    exams = query.order_by(Examination.booking_start, Examination.id).all()
+    return render_template("student_exams.html", exams=exams, q=q, exam_type=exam_type, show=show,
+                           exam_types=EXAM_TYPES, booked_ids=my_booked_exam_ids())
+
+@app.route("/student/exams/<int:exam_id>/slots")
+def student_exam_slots(exam_id):
+    exam = db.get_or_404(Examination, exam_id)
+    if exam.status == "Draft":
+        abort(404)
+    problem = booking_window_problem(exam)
+    my_booking = Booking.query.filter(Booking.student_id == current_user.id, Booking.exam_id == exam.id,
+                                      Booking.status != "Cancelled").first()
+    slots = Slot.query.filter(Slot.exam_id == exam.id, Slot.status != "Cancelled").order_by(Slot.date, Slot.start_time).all()
+    bookable_ids = set()
+    if problem is None and my_booking is None:
+        bookable_ids = {s.id for s in slots if slot_bookable(s)}
+    return render_template("student_exam_slots.html", exam=exam, slots=slots, problem=problem,
+                           my_booking=my_booking, bookable_ids=bookable_ids)
+
+@app.route("/student/slots/<int:slot_id>/book", methods=["POST"])
+def book_slot(slot_id):
+    slot = db.get_or_404(Slot, slot_id)
+    exam = slot.exam
+    back = redirect(url_for("student_exam_slots", exam_id=exam.id))
+    problem = booking_window_problem(exam)
+    if problem:
+        flash(problem, "danger")
+        return back
+    if exam.id in my_booked_exam_ids():
+        flash("You already have a booking for this examination. Cancel it first to choose another slot.", "danger")
+        return back
+    if not slot_bookable(slot):
+        flash("This slot is full or no longer available.", "danger")
+        return back
+    taken = Slot.query.filter(Slot.id == slot.id, Slot.available > 0).update({"available": Slot.available - 1})
+    if taken == 0:
+        db.session.rollback()
+        flash("Sorry, the last seat was just taken.", "danger")
+        return back
+    db.session.refresh(slot)
+    if slot.available == 0:
+        slot.status = "Full"
+    db.session.add(Booking(student_id=current_user.id, slot_id=slot.id, exam_id=exam.id))
+    db.session.commit()
+    flash(f"Booked {exam.name} on {slot.date} at {slot.start_time.strftime('%H:%M')}.", "success")
+    return redirect(url_for("student_schedule"))
+
+@app.route("/student/bookings/<int:booking_id>/cancel", methods=["POST"])
+def cancel_booking(booking_id):
+    booking = get_my_booking(booking_id)
+    exam = booking.exam
+    if booking.status != "Booked":
+        flash("Only active bookings can be cancelled.", "danger")
+    elif date.today() > exam.booking_end:
+        flash(f"The booking deadline ({exam.booking_end}) has passed, so this booking can no longer be cancelled.", "danger")
+    else:
+        slot = booking.slot
+        booking.status = "Cancelled"
+        slot.available += 1
+        if slot.status == "Full":
+            slot.status = "Available"
+        db.session.commit()
+        flash("Booking cancelled.", "success")
+    return redirect(url_for("student_schedule"))
+
+@app.route("/student/schedule")
+def student_schedule():
+    bookings = (Booking.query.join(Slot)
+                .filter(Booking.student_id == current_user.id, Booking.status == "Booked")
+                .order_by(Slot.date, Slot.start_time).all())
+    can_cancel = {b.id for b in bookings if date.today() <= b.exam.booking_end}
+    return render_template("student_schedule.html", bookings=bookings, can_cancel=can_cancel)
+
+@app.route("/student/history")
+def student_history():
+    bookings = Booking.query.filter_by(student_id=current_user.id).order_by(Booking.id.desc()).all()
+    return render_template("student_history.html", bookings=bookings)
+
+@app.route("/student/bookings/<int:booking_id>")
+def booking_detail(booking_id):
+    booking = get_my_booking(booking_id)
+    show_result = booking.status == "Completed" and booking.published
+    scores = {s.rubric_id: s.marks for s in booking.scores}
+    return render_template("booking_detail.html", booking=booking, show_result=show_result,
+                           scores=scores, total=sum(scores.values()))
+
+@app.route("/student/results")
+def student_results():
+    bookings = (Booking.query.filter_by(student_id=current_user.id, status="Completed", published=True)
+                .order_by(Booking.id.desc()).all())
+    return render_template("student_results.html", bookings=bookings)
+
+@app.route("/student/profile", methods=["GET", "POST"])
+def student_profile():
+    if request.method == "POST":
+        name = request.form["name"].strip()
+        if not name:
+            flash("Name is required.", "danger")
+            return redirect(url_for("student_profile"))
+        current_user.name = name
+        current_user.phone = request.form["phone"].strip()
+        current_user.department = request.form["department"].strip()
+        db.session.commit()
+        flash("Profile updated.", "success")
+        return redirect(url_for("student_profile"))
+    return render_template("student_profile.html")
 
 if __name__ == "__main__":
     app.run(debug=True)
