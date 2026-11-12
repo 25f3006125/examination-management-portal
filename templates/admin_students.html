@@ -20,6 +20,7 @@
                 <td>{{ s.email }}</td>
                 <td>{{ s.phone or '' }}</td>
                 <td>{{ s.department or '' }}</td>
+                <td><a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin_bookings', student=s.id) }}">Bookings</a></td>
             </tr>
             {% else %}
             <tr>

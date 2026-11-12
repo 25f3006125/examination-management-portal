@@ -429,6 +429,7 @@ def change_phase(exam_id):
     exam = db.get_or_404(Examination, exam_id)
     action = request.form["action"]
     phase = PHASES.get(action)
+    waiting = Booking.query.filter_by(exam_id=exam.id, status="Booked").count()
     if phase is None:
         flash("Unknown action.", "danger")
     elif exam.status not in phase["from"]:
@@ -437,8 +438,14 @@ def change_phase(exam_id):
         flash("Assign atleast one examiner before opening slot creation.", "danger")
     elif action == "open_booking" and not exam.slots:
         flash("No slots exist yet, so booking cannot be opened.", "danger")
+    elif action == "complete" and waiting > 0:
+        flash(f"{waiting} booking(s) still await evaluation, so the examination cannot be completed yet.", "danger")
     else:
         exam.status = phase["to"]
+        if action == "complete":
+            for slot in exam.slots:
+                if slot.status != "Cancelled":
+                    slot.status = "Completed"
         db.session.commit()
         flash(f"{exam.name} is now: {exam.status}.", "success")
     return redirect(url_for("admin_exams"))
@@ -451,8 +458,21 @@ def admin_slots():
 
 @app.route("/admin/bookings")
 def admin_bookings():
-    bookings = Booking.query.order_by(Booking.id.desc()).all()
-    return render_template("admin_bookings.html", bookings=bookings)
+    status = request.args.get("status", "")
+    student_id = request.args.get("student", type=int)
+    query = Booking.query
+    if status in ("Booked", "Cancelled", "Completed"):
+        query = query.filter_by(status=status)
+    if student_id:
+        query = query.filter_by(student_id=student_id)
+    bookings = query.order_by(Booking.id.desc()).all()
+    student = db.session.get(User, student_id) if student_id else None
+    return render_template("admin_bookings.html", bookings=bookings, status=status, student_id=student_id, student=student)
+@app.route("/admin/bookings/<int:booking_id>")
+def admin_booking_detail(booking_id):
+    booking = db.get_or_404(Booking, booking_id)
+    scores = {s.rubric_id: s.marks for s in booking.scores}
+    return render_template("admin_booking_detail.html", booking=booking, scores=scores, total=sum(scores.values()))
 
 @app.route("/admin/search")
 def admin_search():

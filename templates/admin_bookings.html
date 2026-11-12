@@ -1,6 +1,15 @@
 {% extends "admin_base.html" %}
 {% block admin_content %}
 <h3 class="mb-3">Bookings</h3>
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h3 class="mb-0">Bookings{% if student %} <small class="text-muted">of {{ student.name }}</small>{% endif %}</h3>
+    <div class="btn-group">
+        <a class="btn btn-outline-secondary {% if not status %}active{% endif %}" href="{{ url_for('admin_bookings', student=student_id) }}">All</a>
+        <a class="btn btn-outline-secondary {% if status == 'Booked' %}active{% endif %}" href="{{ url_for('admin_bookings', status='Booked', student=student_id) }}">Booked</a>
+        <a class="btn btn-outline-secondary {% if status == 'Completed' %}active{% endif %}" href="{{ url_for('admin_bookings', status='Completed', student=student_id) }}">Completed</a>
+        <a class="btn btn-outline-secondary {% if status == 'Cancelled' %}active{% endif %}" href="{{ url_for('admin_bookings', status='Cancelled', student=student_id) }}">Cancelled</a>
+    </div>
+</div>
 <div class="table-responsive">
     <table class="table table-striped bg-white align-middle">
         <thead>
@@ -27,14 +36,17 @@
                 <td>{{ b.slot.start_time.strftime('%H:%M') }} - {{ b.slot.end_time.strftime('%H:%M') }}</td>
                 <td>{{ b.booked_at.strftime('%Y-%m-%d %H:%M') if b.booked_at else '' }}</td>
                 <td>{{ b.status }}</td>
-                <td>{% if b.status == 'Booked' and b.exam.status != 'Completed' %}
+                <td>{% if b.status == 'Completed' %}{{ b.scores|sum(attribute='marks') }} / {{ b.exam.max_marks }}{% else %}-{% endif %}</td>
+                <td>
+                    <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin_booking_detail', booking_id=b.id) }}">Details</a>
+                    {% if b.status == 'Booked' and b.exam.status != 'Completed' %}
                     <a class="btn btn-sm btn-outline-primary" href="{{ url_for('reschedule_booking', booking_id=b.id) }}">Reschedule</a>
                     {% endif %}
                 </td>
             </tr>
             {% else %}
             <tr>
-                <td colspan="9" class="text-center text-muted">No bookings yet.</td>
+                <td colspan="10" class="text-center text-muted">No bookings yet{% if status or student_id %} match this filter{% else %} yet{% endif %}.</td>
             </tr>
             {% endfor %}
         </tbody>
