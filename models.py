@@ -19,7 +19,6 @@ class Examiner(db.Model):
     status = db.Column(db.String(20), default="Pending")
     user = db.relationship("User", backref=db.backref("profile", uselist=False))
 
-
 class Course(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     code = db.Column(db.String(20), unique=True, nullable=False)
@@ -45,7 +44,7 @@ class ExamAssignment(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     exam_id = db.Column(db.Integer, db.ForeignKey("examination.id"), nullable=False)
     examiner_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
-    __table_args__ = (db.UniqueConstraint("exam_id", "examiner_id"),) # same examiner can't be assigned twice
+    __table_args__ = (db.UniqueConstraint("exam_id", "examiner_id"),)
     exam = db.relationship("Examination", backref="assignments")
     examiner = db.relationship("User", backref="assignments")
 

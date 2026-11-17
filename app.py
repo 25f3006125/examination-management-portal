@@ -101,7 +101,6 @@ def logout():
     flash("You have been logged out.", "info")
     return redirect(url_for("login"))
 
-#Admin: Dashboard
 @app.route("/admin")
 def admin_dashboard():
     stats = [
@@ -114,7 +113,6 @@ def admin_dashboard():
     ]
     return render_template("admin_dashboard.html", stats=stats)
 
-#Admin: courses
 @app.route("/admin/courses")
 def admin_courses():
     courses = Course.query.order_by(Course.code).all()
@@ -138,7 +136,6 @@ def new_course():
         flash("Course added.", "success")
         return redirect(url_for("admin_courses"))
     return render_template("course_form.html", course=None)
-
 
 @app.route("/admin/courses/<int:course_id>/edit", methods=["GET", "POST"])
 def edit_course(course_id):
@@ -164,7 +161,6 @@ def edit_course(course_id):
         return redirect(url_for("admin_courses"))
     return render_template("course_form.html", course=course)
 
-
 @app.route("/admin/courses/<int:course_id>/delete", methods=["POST"])
 def delete_course(course_id):
     course = db.get_or_404(Course, course_id)
@@ -176,9 +172,7 @@ def delete_course(course_id):
         flash("Course deleted.", "success")
     return redirect(url_for("admin_courses"))
 
-#Admin: Examinations
 EXAM_TYPES = ["Viva", "Practical", "Project Demo", "Assessment"]
-
 def read_exam_form():
     try:
         values = {
@@ -266,7 +260,6 @@ def delete_exam(exam_id):
         flash("Examination deleted.", "success")
     return redirect(url_for("admin_exams"))
 
-#Admin: rubrics
 def read_rubric_form(exam, rubric=None):
     try:
         values = {
@@ -333,7 +326,6 @@ def delete_rubric(rubric_id):
         flash("Rubric deleted.", "success")
     return redirect(url_for("exam_rubrics", exam_id=exam_id))
 
-#Admin: examiners and students
 @app.route("/admin/examiners")
 def admin_examiners():
     examiners = Examiner.query.order_by(Examiner.id).all()
@@ -353,8 +345,7 @@ def new_examiner():
         if User.query.filter_by(email=email).first():
             flash("That email is already registered.", "danger")
             return redirect(url_for("new_examiner"))
-        user = User(email=email, name=name, phone=phone, department=department,
-                    role="examiner", password_hash=generate_password_hash(password))
+        user = User(email=email, name=name, phone=phone, department=department, role="examiner", password_hash=generate_password_hash(password))
         db.session.add(user)
         db.session.add(Examiner(user=user, status="Approved"))
         db.session.commit()
@@ -379,7 +370,6 @@ def admin_students():
     students = User.query.filter_by(role="student").order_by(User.id).all()
     return render_template("admin_students.html", students=students)
 
-#Admin: assign examiners to examinations
 @app.route("/admin/exams/<int:exam_id>/examiners", methods=["GET", "POST"])
 def exam_examiners(exam_id):
     exam = db.get_or_404(Examination, exam_id)
@@ -416,7 +406,6 @@ def delete_assignment(assignment_id):
         flash("Examiner removed from this examination.", "success")
     return redirect(url_for("exam_examiners", exam_id=exam_id))
 
-#Admin: examination phase
 PHASES = {
     "open_slots": {"from": ["Draft", "Closed"], "to": "Slot Creation", "label": "Open slot cretaion"},
     "close_slots": {"from": ["Slot Creation"], "to": "Closed", "label": "Closed slot creation"},
@@ -450,7 +439,6 @@ def change_phase(exam_id):
         flash(f"{exam.name} is now: {exam.status}.", "success")
     return redirect(url_for("admin_exams"))
 
-#Admin: slots, bookings and search
 @app.route("/admin/slots")
 def admin_slots():
     slots = Slot.query.order_by(Slot.date, Slot.start_time).all()
@@ -481,15 +469,10 @@ def admin_search():
     if q:
         like = f"%{q}%"
         q_id = int(q) if q.isdigit() and len(q) < 10 else -1
-        results["students"] = User.query.filter(
-            User.role == "student",
-            db.or_(User.name.ilike(like), User.email.ilike(like), User.id == q_id)).all()
-        results["examiners"] = Examiner.query.join(User).filter(
-            db.or_(User.name.ilike(like), User.email.ilike(like), Examiner.id == q_id)).all()
-        results["exams"] = Examination.query.join(Course).filter(
-            db.or_(Examination.name.ilike(like), Course.code.ilike(like), Examination.id == q_id)).all()
-        results["bookings"] = (Booking.query.join(User, Booking.student_id == User.id).join(Examination, Booking.exam_id == Examination.id)
-            .filter(db.or_(User.name.ilike(like), Examination.name.ilike(like), Booking.id == q_id)).all())
+        results["students"] = User.query.filter(User.role == "student", db.or_(User.name.ilike(like), User.email.ilike(like), User.id == q_id)).all()
+        results["examiners"] = Examiner.query.join(User).filter(db.or_(User.name.ilike(like), User.email.ilike(like), Examiner.id == q_id)).all()
+        results["exams"] = Examination.query.join(Course).filter(db.or_(Examination.name.ilike(like), Course.code.ilike(like), Examination.id == q_id)).all()
+        results["bookings"] = (Booking.query.join(User, Booking.student_id == User.id).join(Examination, Booking.exam_id == Examination.id).filter(db.or_(User.name.ilike(like), Examination.name.ilike(like), Booking.id == q_id)).all())
     return render_template("admin_search.html", q=q, results=results)
 
 @app.route("/admin/bookings/<int:booking_id>/reschedule", methods=["GET", "POST"])
@@ -519,8 +502,7 @@ def reschedule_booking(booking_id):
         db.session.commit()
         flash("Booking moved to the new slot.", "success")
         return redirect(url_for("admin_bookings"))
-    slots = Slot.query.filter(Slot.exam_id == booking.exam_id, Slot.id != old_slot.id, Slot.status == "Available", 
-                              Slot.available > 0).order_by(Slot.date, Slot.start_time).all()
+    slots = Slot.query.filter(Slot.exam_id == booking.exam_id, Slot.id != old_slot.id, Slot.status == "Available", Slot.available > 0).order_by(Slot.date, Slot.start_time).all()
     return render_template("reschedule_form.html", booking=booking, slots=slots)
 
 @app.route("/admin/assignments/<int:assignment_id>/replace", methods=["POST"])
@@ -666,8 +648,7 @@ def delete_slot(slot_id):
 @app.route("/examiner/students")
 def examiner_students():
     show = request.args.get("show", "all")
-    query = (Booking.query.join(Slot)
-             .filter(Slot.examiner_id == current_user.id, Booking.status != "Cancelled"))
+    query = (Booking.query.join(Slot).filter(Slot.examiner_id == current_user.id, Booking.status != "Cancelled"))
     if show == "pending":
         query = query.filter(Booking.status == "Booked")
     bookings = query.order_by(Slot.date, Slot.start_time).all()
@@ -725,7 +706,6 @@ def examiner_profile():
         return redirect(url_for("examiner_profile"))
     return render_template("examiner_profile.html")
 
-#Student
 def my_booked_exam_ids():
     rows = Booking.query.filter(Booking.student_id == current_user.id, Booking.status != "Cancelled").all()
     return {b.exam_id for b in rows}
@@ -748,16 +728,14 @@ def get_my_booking(booking_id):
 @app.route("/student")
 def student_dashboard():
     booked_ids = my_booked_exam_ids()
-    open_exams = [e for e in Examination.query.filter_by(status="Booking Open").all() 
-                  if booking_window_problem(e) is None and e.id not in booked_ids]
+    open_exams = [e for e in Examination.query.filter_by(status="Booking Open").all() if booking_window_problem(e) is None and e.id not in booked_ids]
     open_slots = 0
     for exam in open_exams:
         for slot in exam.slots:
             if slot_bookable(slot):
                 open_slots += 1
     mine = Booking.query.filter_by(student_id=current_user.id)
-    upcoming = [b for b in mine.filter_by(status="Booked").all()
-                if datetime.combine(b.slot.date, b.slot.start_time) > datetime.now()]
+    upcoming = [b for b in mine.filter_by(status="Booked").all() if datetime.combine(b.slot.date, b.slot.start_time) > datetime.now()]
     stats = [
         ("Available examinations", len(open_exams), url_for("student_exams")),
         ("Available slots", open_slots, url_for("student_exams")),
@@ -781,8 +759,7 @@ def student_exams():
     if exam_type in EXAM_TYPES:
         query = query.filter(Examination.exam_type == exam_type)
     exams = query.order_by(Examination.booking_start, Examination.id).all()
-    return render_template("student_exams.html", exams=exams, q=q, exam_type=exam_type, show=show,
-                           exam_types=EXAM_TYPES, booked_ids=my_booked_exam_ids())
+    return render_template("student_exams.html", exams=exams, q=q, exam_type=exam_type, show=show, exam_types=EXAM_TYPES, booked_ids=my_booked_exam_ids())
 
 @app.route("/student/exams/<int:exam_id>/slots")
 def student_exam_slots(exam_id):
@@ -790,14 +767,12 @@ def student_exam_slots(exam_id):
     if exam.status == "Draft":
         abort(404)
     problem = booking_window_problem(exam)
-    my_booking = Booking.query.filter(Booking.student_id == current_user.id, Booking.exam_id == exam.id,
-                                      Booking.status != "Cancelled").first()
+    my_booking = Booking.query.filter(Booking.student_id == current_user.id, Booking.exam_id == exam.id, Booking.status != "Cancelled").first()
     slots = Slot.query.filter(Slot.exam_id == exam.id, Slot.status != "Cancelled").order_by(Slot.date, Slot.start_time).all()
     bookable_ids = set()
     if problem is None and my_booking is None:
         bookable_ids = {s.id for s in slots if slot_bookable(s)}
-    return render_template("student_exam_slots.html", exam=exam, slots=slots, problem=problem,
-                           my_booking=my_booking, bookable_ids=bookable_ids)
+    return render_template("student_exam_slots.html", exam=exam, slots=slots, problem=problem, my_booking=my_booking, bookable_ids=bookable_ids)
 
 @app.route("/student/slots/<int:slot_id>/book", methods=["POST"])
 def book_slot(slot_id):
@@ -847,9 +822,7 @@ def cancel_booking(booking_id):
 
 @app.route("/student/schedule")
 def student_schedule():
-    bookings = (Booking.query.join(Slot)
-                .filter(Booking.student_id == current_user.id, Booking.status == "Booked")
-                .order_by(Slot.date, Slot.start_time).all())
+    bookings = (Booking.query.join(Slot).filter(Booking.student_id == current_user.id, Booking.status == "Booked").order_by(Slot.date, Slot.start_time).all())
     can_cancel = {b.id for b in bookings if date.today() <= b.exam.booking_end}
     return render_template("student_schedule.html", bookings=bookings, can_cancel=can_cancel)
 
@@ -863,13 +836,11 @@ def booking_detail(booking_id):
     booking = get_my_booking(booking_id)
     show_result = booking.status == "Completed" and booking.published
     scores = {s.rubric_id: s.marks for s in booking.scores}
-    return render_template("booking_detail.html", booking=booking, show_result=show_result,
-                           scores=scores, total=sum(scores.values()))
+    return render_template("booking_detail.html", booking=booking, show_result=show_result, scores=scores, total=sum(scores.values()))
 
 @app.route("/student/results")
 def student_results():
-    bookings = (Booking.query.filter_by(student_id=current_user.id, status="Completed", published=True)
-                .order_by(Booking.id.desc()).all())
+    bookings = (Booking.query.filter_by(student_id=current_user.id, status="Completed", published=True).order_by(Booking.id.desc()).all())
     return render_template("student_results.html", bookings=bookings)
 
 @app.route("/student/profile", methods=["GET", "POST"])
